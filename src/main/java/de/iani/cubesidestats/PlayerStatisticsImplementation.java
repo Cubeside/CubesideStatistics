@@ -35,7 +35,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void increaseScore(StatisticKey key, int amount) {
-        // TODO Auto-generated method stub
+        // TODO Auto-generated method stub 123
 
     }
 
