@@ -1,0 +1,8 @@
+name: ${project.artifactId}
+main: de.iani.cubesidestats.CubesideStatistics
+version: ${project.version}-${build.number}
+description: CubesideStatistics
+authors:
+  - Brokkonaut
+depend: [PlayerUUIDCache, CubesideSettings]
+# loadbefore: [Vault]
