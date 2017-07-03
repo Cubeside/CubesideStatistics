@@ -1,0 +1,6 @@
+database:
+  host: localhost
+  user: CHANGETHIS
+  password: CHANGETHIS
+  database: CHANGETHIS
+  tableprefix: cubeside_statistics

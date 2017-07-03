@@ -9,7 +9,7 @@ public interface CubesideStatisticsAPI {
 
     public boolean hasStatisticKey(String id);
 
-    public AchivementKey getAchivementKey(String id);
+    // public AchivementKey getAchivementKey(String id);
 
-    public boolean hasAchivementKey(String id);
+    // public boolean hasAchivementKey(String id);
 }
