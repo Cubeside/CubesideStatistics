@@ -7,6 +7,8 @@ public interface CubesideStatisticsAPI {
 
     public StatisticKey getStatisticKey(String id);
 
+    public StatisticKey getStatisticKey(String id, boolean create);
+
     public boolean hasStatisticKey(String id);
 
     // public AchivementKey getAchivementKey(String id);

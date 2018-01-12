@@ -13,6 +13,10 @@ public interface PlayerStatistics {
 
     public void setScore(StatisticKey key, int value);
 
+    public void maxScore(StatisticKey key, int value);
+
+    public void minScore(StatisticKey key, int value);
+
     public void getScore(StatisticKey key, Callback<Integer> scoreCallback);
 
     public void getPosition(StatisticKey key, Callback<Integer> positionCallback);
@@ -26,4 +30,5 @@ public interface PlayerStatistics {
     public void revokeAchivement(AchivementKey key);
 
     public void hasAchivement(AchivementKey key, Callback<Boolean> achivementCallback);
+
 }

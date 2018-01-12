@@ -16,7 +16,7 @@ import de.iani.settings.sql.SQLRunnable;
 
 public class StatisticsDatabase {
     private SQLConnection connection;
-    // private final CubesideStatistics plugin;
+    private final CubesideStatisticsImplementation impl;
 
     private final String getConfigValue;
     private final String increaseConfigValue;
@@ -30,18 +30,20 @@ public class StatisticsDatabase {
 
     private final String changeScore;
     private final String setScore;
+    private final String maxScore;
+    private final String minScore;
     private final String getScore;
 
     private final String configSettingSerial = "serial";
 
-    public StatisticsDatabase(CubesideStatistics plugin, SQLConfig config) throws SQLException {
-        // this.plugin = plugin;
+    public StatisticsDatabase(CubesideStatisticsImplementation impl, SQLConfig config) throws SQLException {
+        this.impl = impl;
         connection = new MySQLConnection(config.getHost(), config.getDatabase(), config.getUser(), config.getPassword());
         String prefix = config.getTablePrefix();
         updateTables(prefix);
 
         getConfigValue = "SELECT value FROM " + prefix + "_config WHERE setting = ?";
-        increaseConfigValue = "UPDATE " + prefix + "_config set value = value + 1 WHERE setting = ?";
+        increaseConfigValue = "INSERT INTO " + prefix + "_config (setting, `value`) VALUE (?, 1) ON DUPLICATE KEY UPDATE `value` = `value` + 1";
         getPlayerId = "SELECT id FROM " + prefix + "_players WHERE uuid = ?";
         createPlayerId = "INSERT INTO " + prefix + "_players (uuid) VALUE (?)";
 
@@ -51,6 +53,8 @@ public class StatisticsDatabase {
 
         changeScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = score + ?";
         setScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = ?";
+        maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = MAX(score,?)";
+        minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = MIN(score,?)";
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
     }
 
@@ -61,30 +65,30 @@ public class StatisticsDatabase {
                 Statement smt = connection.createStatement();
                 if (!sqlConnection.hasTable(prefix + "_config")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_config` (" + //
-                    " `setting` varchar(50)" + //
-                    " `value` int(11)" + //
+                    " `setting` varchar(50)," + //
+                    " `value` int(11)," + //
                     " PRIMARY KEY (`setting`)" + //
                     " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_players")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_players` (" + //
-                    " `id` int(11) AUTO_INCREMENT" + //
+                    " `id` int(11) AUTO_INCREMENT," + //
                     " `uuid` char(36) NOT NULL," + //
                     " PRIMARY KEY (`id`), UNIQUE KEY (`uuid`)" + //
                     " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_stats")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_stats` (" + //
-                    " `id` int(11) AUTO_INCREMENT" + //
-                    " `name` varchar(`255`) NOT NULL," + //
+                    " `id` int(11) AUTO_INCREMENT," + //
+                    " `name` varchar(255) NOT NULL," + //
                     " `properties` text NOT NULL," + //
                     " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                     " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_scores")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_scores` (" + //
-                    " `playerid` int(11) NOT NULL" + //
-                    " `statsid` int(11) NOT NULL" + //
+                    " `playerid` int(11) NOT NULL," + //
+                    " `statsid` int(11) NOT NULL," + //
                     " `month` int(11) NOT NULL," + //
                     " `score` int(11) NOT NULL," + //
                     " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`)" + //
@@ -117,10 +121,10 @@ public class StatisticsDatabase {
         }
     }
 
-    public StatisticKey createStatisticKey(String name) throws SQLException {
-        return this.connection.runCommands(new SQLRunnable<StatisticKey>() {
+    public StatisticKeyImplementation createStatisticKey(String name) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<StatisticKeyImplementation>() {
             @Override
-            public StatisticKey execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public StatisticKeyImplementation execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(createStatsKey, Statement.RETURN_GENERATED_KEYS);
                 smt.setString(1, name);
                 smt.setString(2, "");
@@ -137,7 +141,7 @@ public class StatisticsDatabase {
                     return null;
                 }
                 internalIncreaseConfigSerial(connection, sqlConnection);
-                return new StatisticKeyImplementation(id, name, "");
+                return new StatisticKeyImplementation(id, name, null, impl);
             }
         });
     }
@@ -148,9 +152,12 @@ public class StatisticsDatabase {
             public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 StatisticKeyImplementation impl = (StatisticKeyImplementation) key;
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(updateStatsKey);
-                smt.setInt(1, impl.getId());
-                smt.setString(2, impl.getSerializedProperties());
+                smt.setString(1, impl.getSerializedProperties());
+                smt.setInt(2, impl.getId());
+                // int rows =
                 smt.executeUpdate();
+                // StatisticsDatabase.this.impl.getPlugin().getLogger().info(impl.getId() + " - " + impl.getSerializedProperties());
+                // StatisticsDatabase.this.impl.getPlugin().getLogger().info("Rows: " + rows);
                 internalIncreaseConfigSerial(connection, sqlConnection);
                 return null;
             }
@@ -184,9 +191,9 @@ public class StatisticsDatabase {
                 smt = sqlConnection.getOrCreateStatement(getAllStatsKeys);
                 results = smt.executeQuery();
                 while (results.next()) {
-                    keys.add(new StatisticKeyImplementation(results.getInt("id"), results.getString("name"), results.getString("properties")));
-                    results.close();
+                    keys.add(new StatisticKeyImplementation(results.getInt("id"), results.getString("name"), results.getString("properties"), impl));
                 }
+                results.close();
 
                 return new ConfigDTO(configSerial, keys);
             }
@@ -250,6 +257,48 @@ public class StatisticsDatabase {
             public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(setScore);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                smt.setInt(3, -1);
+                smt.setInt(4, value);
+                smt.setInt(5, value);
+                smt.executeUpdate();
+                if (month >= 0 && key.isMonthlyStats()) {
+                    smt.setInt(3, month);
+                    smt.executeUpdate();
+                }
+                return null;
+            }
+        });
+    }
+
+    public void maxScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(maxScore);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                smt.setInt(3, -1);
+                smt.setInt(4, value);
+                smt.setInt(5, value);
+                smt.executeUpdate();
+                if (month >= 0 && key.isMonthlyStats()) {
+                    smt.setInt(3, month);
+                    smt.executeUpdate();
+                }
+                return null;
+            }
+        });
+    }
+
+    public void minScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(minScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);

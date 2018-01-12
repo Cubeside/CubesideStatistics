@@ -16,7 +16,7 @@ public class CubesideStatistics extends JavaPlugin {
         try {
             impl = new CubesideStatisticsImplementation(this);
         } catch (SQLException e) {
-            getLogger().log(Level.SEVERE, "Could not connect to database: " + e.getMessage());
+            getLogger().log(Level.SEVERE, "Could not connect to database: " + e.getMessage(), e);
             return;
         }
         getServer().getServicesManager().register(CubesideStatisticsAPI.class, impl, this, ServicePriority.Normal);
@@ -24,6 +24,8 @@ public class CubesideStatistics extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        impl.shutdown();
+        if (impl != null) {
+            impl.shutdown();
+        }
     }
 }

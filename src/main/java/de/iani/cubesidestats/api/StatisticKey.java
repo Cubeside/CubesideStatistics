@@ -5,7 +5,7 @@ public interface StatisticKey {
 
     public void setDisplayName(String name);
 
-    public void getDisplayName();
+    public String getDisplayName();
 
     public void setIsMonthlyStats(boolean monthly);
 

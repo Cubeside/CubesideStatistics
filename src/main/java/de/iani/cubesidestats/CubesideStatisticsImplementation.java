@@ -28,7 +28,8 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
     public CubesideStatisticsImplementation(CubesideStatistics plugin) throws SQLException {
         this.plugin = plugin;
-        database = new StatisticsDatabase(plugin, new SQLConfig(plugin.getConfig().getConfigurationSection("database")));
+        plugin.saveDefaultConfig();
+        database = new StatisticsDatabase(this, new SQLConfig(plugin.getConfig().getConfigurationSection("database")));
 
         statisticKeys = new HashMap<>();
         onlinePlayers = new HashMap<>();
@@ -137,7 +138,26 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
     @Override
     public StatisticKey getStatisticKey(String id) {
-        return statisticKeys.get(id);
+        return getStatisticKey(id, true);
+    }
+
+    @Override
+    public StatisticKey getStatisticKey(String id, boolean create) {
+        StatisticKeyImplementation existing = statisticKeys.get(id);
+        if (existing == null && create) {
+            reloadConfigNow();
+            existing = statisticKeys.get(id);
+            if (existing == null) {
+                try {
+                    existing = database.createStatisticKey(id);
+                    statisticKeys.put(existing.getName(), existing);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Could not create statistics key", e);
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return existing;
     }
 
     @Override
