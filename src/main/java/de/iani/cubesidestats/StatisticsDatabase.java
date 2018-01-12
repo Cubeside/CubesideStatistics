@@ -53,8 +53,8 @@ public class StatisticsDatabase {
 
         changeScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = score + ?";
         setScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = ?";
-        maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = MAX(score,?)";
-        minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = MIN(score,?)";
+        maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
+        minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
     }
 
@@ -272,12 +272,23 @@ public class StatisticsDatabase {
         });
     }
 
-    public void maxScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
-        this.connection.runCommands(new SQLRunnable<Void>() {
+    public boolean maxScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Boolean>() {
             @Override
-            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(maxScore);
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getScore);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                smt.setInt(3, month);
+                ResultSet results = smt.executeQuery();
+                Integer old = null;
+                if (results.next()) {
+                    old = results.getInt("score");
+                }
+                results.close();
+
+                smt = sqlConnection.getOrCreateStatement(maxScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
@@ -288,17 +299,28 @@ public class StatisticsDatabase {
                     smt.setInt(3, month);
                     smt.executeUpdate();
                 }
-                return null;
+                return old == null || value > old.intValue();
             }
         });
     }
 
-    public void minScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
-        this.connection.runCommands(new SQLRunnable<Void>() {
+    public boolean minScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Boolean>() {
             @Override
-            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(minScore);
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getScore);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                smt.setInt(3, month);
+                ResultSet results = smt.executeQuery();
+                Integer old = null;
+                if (results.next()) {
+                    old = results.getInt("score");
+                }
+                results.close();
+
+                smt = sqlConnection.getOrCreateStatement(minScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
@@ -309,7 +331,7 @@ public class StatisticsDatabase {
                     smt.setInt(3, month);
                     smt.executeUpdate();
                 }
-                return null;
+                return old == null || value < old.intValue();
             }
         });
     }
@@ -326,7 +348,7 @@ public class StatisticsDatabase {
                 ResultSet results = smt.executeQuery();
                 Integer rv = null;
                 if (results.next()) {
-                    rv = results.getInt("id");
+                    rv = results.getInt("score");
                 }
                 results.close();
                 return rv == null ? 0 : rv;

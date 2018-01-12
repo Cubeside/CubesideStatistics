@@ -60,12 +60,22 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void maxScore(StatisticKey key, int value) {
-        maxScoreInMonth(key, value, getCurrentMonthKey());
+        maxScore(key, value, null);
+    }
+
+    @Override
+    public void maxScore(StatisticKey key, int value, Callback<Boolean> updatedCallback) {
+        maxScoreInMonth(key, value, getCurrentMonthKey(), updatedCallback);
     }
 
     @Override
     public void minScore(StatisticKey key, int value) {
-        minScoreInMonth(key, value, getCurrentMonthKey());
+        minScore(key, value, null);
+    }
+
+    @Override
+    public void minScore(StatisticKey key, int value, Callback<Boolean> updatedCallback) {
+        minScoreInMonth(key, value, getCurrentMonthKey(), updatedCallback);
     }
 
     @Override
@@ -88,7 +98,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         getPositionInMonth(key, getCurrentMonthKey(), positionCallback);
     }
 
-    private void minScoreInMonth(StatisticKey key, int value, int month) {
+    private void minScoreInMonth(StatisticKey key, int value, int month, Callback<Boolean> updatedCallback) {
         if (!(key instanceof StatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
@@ -100,7 +110,15 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    database.minScore(databaseId, (StatisticKeyImplementation) key, month, value);
+                    boolean result = database.minScore(databaseId, (StatisticKeyImplementation) key, month, value);
+                    if (updatedCallback != null) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                updatedCallback.call(result);
+                            }
+                        });
+                    }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
                 }
@@ -108,7 +126,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         });
     }
 
-    private void maxScoreInMonth(StatisticKey key, int value, int month) {
+    private void maxScoreInMonth(StatisticKey key, int value, int month, Callback<Boolean> updatedCallback) {
         if (!(key instanceof StatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
@@ -120,7 +138,15 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    database.maxScore(databaseId, (StatisticKeyImplementation) key, month, value);
+                    boolean result = database.maxScore(databaseId, (StatisticKeyImplementation) key, month, value);
+                    if (updatedCallback != null) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                updatedCallback.call(result);
+                            }
+                        });
+                    }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
                 }

@@ -15,7 +15,11 @@ public interface PlayerStatistics {
 
     public void maxScore(StatisticKey key, int value);
 
+    public void maxScore(StatisticKey key, int value, Callback<Boolean> updatedCallback);
+
     public void minScore(StatisticKey key, int value);
+
+    public void minScore(StatisticKey key, int value, Callback<Boolean> updatedCallback);
 
     public void getScore(StatisticKey key, Callback<Integer> scoreCallback);
 
