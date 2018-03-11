@@ -2,8 +2,6 @@ package de.iani.cubesidestats.api;
 
 import java.util.UUID;
 
-import de.iani.cubesidestats.Callback;
-
 public interface PlayerStatistics {
     public UUID getOwner();
 

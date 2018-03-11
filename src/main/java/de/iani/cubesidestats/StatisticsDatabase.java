@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import de.iani.cubesidestats.api.StatisticKey;
@@ -33,6 +34,8 @@ public class StatisticsDatabase {
     private final String maxScore;
     private final String minScore;
     private final String getScore;
+    private final String getPosition;
+    private final String getTopScores;
 
     private final String configSettingSerial = "serial";
 
@@ -56,6 +59,9 @@ public class StatisticsDatabase {
         maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
         minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
+        getPosition = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?)";
+
+        getTopScores = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?";
     }
 
     private void updateTables(String prefix) throws SQLException {
@@ -280,7 +286,7 @@ public class StatisticsDatabase {
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(getScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
-                smt.setInt(3, month);
+                smt.setInt(3, -1);
                 ResultSet results = smt.executeQuery();
                 Integer old = null;
                 if (results.next()) {
@@ -312,7 +318,7 @@ public class StatisticsDatabase {
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(getScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
-                smt.setInt(3, month);
+                smt.setInt(3, -1);
                 ResultSet results = smt.executeQuery();
                 Integer old = null;
                 if (results.next()) {
@@ -352,6 +358,30 @@ public class StatisticsDatabase {
                 }
                 results.close();
                 return rv == null ? 0 : rv;
+            }
+        });
+    }
+
+    public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int count, int month) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<List<InternalPlayerWithScore>>() {
+            @Override
+            public List<InternalPlayerWithScore> execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getTopScores);
+                smt.setInt(1, keyId);
+                smt.setInt(2, month);
+                smt.setInt(3, count);
+                ResultSet results = smt.executeQuery();
+                ArrayList<InternalPlayerWithScore> rv = new ArrayList<>();
+                int position = 0;
+                while (results.next()) {
+                    UUID player = UUID.fromString(results.getString("uuid"));
+                    position += 1;
+                    int score = results.getInt("score");
+                    rv.add(new InternalPlayerWithScore(player, score, position));
+                }
+                results.close();
+                return rv;
             }
         });
     }

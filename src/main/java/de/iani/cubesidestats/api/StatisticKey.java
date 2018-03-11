@@ -1,5 +1,7 @@
 package de.iani.cubesidestats.api;
 
+import java.util.List;
+
 public interface StatisticKey {
     public String getName();
 
@@ -10,4 +12,6 @@ public interface StatisticKey {
     public void setIsMonthlyStats(boolean monthly);
 
     public boolean isMonthlyStats();
+
+    public void getTop(int count, boolean monthly, Callback<List<PlayerWithScore>> resultCallback);
 }

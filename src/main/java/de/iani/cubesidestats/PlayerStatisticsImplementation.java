@@ -1,12 +1,12 @@
 package de.iani.cubesidestats;
 
 import java.sql.SQLException;
-import java.util.Calendar;
 import java.util.UUID;
 import java.util.logging.Level;
 
 import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
 import de.iani.cubesidestats.api.AchivementKey;
+import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.PlayerStatistics;
 import de.iani.cubesidestats.api.StatisticKey;
 
@@ -14,7 +14,6 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
     private CubesideStatisticsImplementation stats;
     private final UUID playerId;
     private int databaseId;
-    private Calendar calender = Calendar.getInstance();
 
     public PlayerStatisticsImplementation(CubesideStatisticsImplementation stats, UUID player) {
         if (player == null) {
@@ -50,12 +49,12 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void increaseScore(StatisticKey key, int amount) {
-        increaseScoreInMonth(key, amount, getCurrentMonthKey());
+        increaseScoreInMonth(key, amount, stats.getCurrentMonthKey());
     }
 
     @Override
     public void setScore(StatisticKey key, int value) {
-        setScoreInMonth(key, value, getCurrentMonthKey());
+        setScoreInMonth(key, value, stats.getCurrentMonthKey());
     }
 
     @Override
@@ -65,7 +64,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void maxScore(StatisticKey key, int value, Callback<Boolean> updatedCallback) {
-        maxScoreInMonth(key, value, getCurrentMonthKey(), updatedCallback);
+        maxScoreInMonth(key, value, stats.getCurrentMonthKey(), updatedCallback);
     }
 
     @Override
@@ -75,7 +74,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void minScore(StatisticKey key, int value, Callback<Boolean> updatedCallback) {
-        minScoreInMonth(key, value, getCurrentMonthKey(), updatedCallback);
+        minScoreInMonth(key, value, stats.getCurrentMonthKey(), updatedCallback);
     }
 
     @Override
@@ -90,12 +89,12 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void getScoreThisMonth(StatisticKey key, Callback<Integer> scoreCallback) {
-        getScoreInMonth(key, getCurrentMonthKey(), scoreCallback);
+        getScoreInMonth(key, stats.getCurrentMonthKey(), scoreCallback);
     }
 
     @Override
     public void getPositionThisMonth(StatisticKey key, Callback<Integer> positionCallback) {
-        getPositionInMonth(key, getCurrentMonthKey(), positionCallback);
+        getPositionInMonth(key, stats.getCurrentMonthKey(), positionCallback);
     }
 
     private void minScoreInMonth(StatisticKey key, int value, int month, Callback<Boolean> updatedCallback) {
@@ -250,11 +249,6 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 }
             }
         });
-    }
-
-    private int getCurrentMonthKey() {
-        calender.setTimeInMillis(System.currentTimeMillis());
-        return calender.get(Calendar.YEAR) * 100 + calender.get(Calendar.MONTH) + 1;
     }
 
     @Override

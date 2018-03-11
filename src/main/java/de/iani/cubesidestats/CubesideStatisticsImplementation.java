@@ -2,6 +2,7 @@ package de.iani.cubesidestats;
 
 import java.sql.SQLException;
 import java.util.ArrayDeque;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,6 +26,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private int configSerial = -1;
     private final static int CONFIG_RELOAD_TICKS = 20 * 60 * 5;// 5 minutes (in ticks)
     private final static long MIN_CACHE_NANOS = 1_000_000_000L * 60 * 5;// 5 minutes (in nanos)
+    private final Calendar calender = Calendar.getInstance();
 
     public CubesideStatisticsImplementation(CubesideStatistics plugin) throws SQLException {
         this.plugin = plugin;
@@ -249,5 +251,10 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
     public static interface WorkEntry {
         void process(StatisticsDatabase database);
+    }
+
+    public int getCurrentMonthKey() {
+        calender.setTimeInMillis(System.currentTimeMillis());
+        return calender.get(Calendar.YEAR) * 100 + calender.get(Calendar.MONTH) + 1;
     }
 }
