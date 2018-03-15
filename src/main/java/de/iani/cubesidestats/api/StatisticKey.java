@@ -13,5 +13,9 @@ public interface StatisticKey {
 
     public boolean isMonthlyStats();
 
-    public void getTop(int count, boolean monthly, Callback<List<PlayerWithScore>> resultCallback);
+    public void setIsDailyStats(boolean daily);
+
+    public boolean isDailyStats();
+
+    public void getTop(int count, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback);
 }

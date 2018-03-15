@@ -257,4 +257,9 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         calender.setTimeInMillis(System.currentTimeMillis());
         return calender.get(Calendar.YEAR) * 100 + calender.get(Calendar.MONTH) + 1;
     }
+
+    public int getCurrentDayKey() {
+        calender.setTimeInMillis(System.currentTimeMillis());
+        return calender.get(Calendar.YEAR) * 1000 + calender.get(Calendar.DAY_OF_YEAR);
+    }
 }

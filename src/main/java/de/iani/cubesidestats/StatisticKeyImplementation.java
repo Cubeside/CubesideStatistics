@@ -13,6 +13,7 @@ import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
 import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.PlayerWithScore;
 import de.iani.cubesidestats.api.StatisticKey;
+import de.iani.cubesidestats.api.TimeFrame;
 
 public class StatisticKeyImplementation implements StatisticKey {
 
@@ -22,6 +23,7 @@ public class StatisticKeyImplementation implements StatisticKey {
 
     private String displayName;
     private boolean isMonthly;
+    private boolean isDaily;
 
     public StatisticKeyImplementation(int id, String name, String properties, CubesideStatisticsImplementation impl) {
         this.id = id;
@@ -38,12 +40,14 @@ public class StatisticKeyImplementation implements StatisticKey {
         }
         displayName = conf.getString("displayName");
         isMonthly = conf.getBoolean("isMonthly");
+        isDaily = conf.getBoolean("isDaily");
     }
 
     public String getSerializedProperties() {
         YamlConfiguration conf = new YamlConfiguration();
         conf.set("displayName", displayName);
         conf.set("isMonthly", isMonthly);
+        conf.set("isDaily", isDaily);
         return conf.saveToString();
     }
 
@@ -98,14 +102,34 @@ public class StatisticKeyImplementation implements StatisticKey {
         return isMonthly;
     }
 
+    @Override
+    public void setIsDailyStats(boolean daily) {
+        if (this.isDaily != daily) {
+            this.isDaily = daily;
+            save();
+        }
+    }
+
+    @Override
+    public boolean isDailyStats() {
+        return isDaily;
+    }
+
     public void copyPropertiesFrom(StatisticKeyImplementation e) {
         displayName = e.displayName;
         isMonthly = e.isMonthly;
+        isDaily = e.isDaily;
     }
 
-    public void getTop(int count, boolean monthly, Callback<List<PlayerWithScore>> resultCallback) {
+    @Override
+    public void getTop(int count, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback) {
+        boolean monthly = timeFrame == TimeFrame.MONTH;
         if (monthly && !isMonthlyStats()) {
             throw new IllegalArgumentException("There are no monthly stats for this key");
+        }
+        boolean daily = timeFrame == TimeFrame.DAY;
+        if (daily && !isDailyStats()) {
+            throw new IllegalArgumentException("There are no daily stats for this key");
         }
         if (resultCallback == null) {
             throw new NullPointerException("scoreCallback");
@@ -113,11 +137,18 @@ public class StatisticKeyImplementation implements StatisticKey {
         if (count < 0) {
             throw new IllegalArgumentException("count must be >= 0");
         }
+        int timekey = -1;
+        if (monthly) {
+            timekey = stats.getCurrentMonthKey();
+        } else if (daily) {
+            timekey = stats.getCurrentDayKey();
+        }
+        final int timekey2 = timekey;
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
                 try {
-                    List<InternalPlayerWithScore> score = database.getTop(StatisticKeyImplementation.this, count, monthly ? stats.getCurrentMonthKey() : -1);
+                    List<InternalPlayerWithScore> score = database.getTop(StatisticKeyImplementation.this, count, timekey2);
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {

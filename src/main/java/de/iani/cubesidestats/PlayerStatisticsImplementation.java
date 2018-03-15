@@ -9,6 +9,7 @@ import de.iani.cubesidestats.api.AchivementKey;
 import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.PlayerStatistics;
 import de.iani.cubesidestats.api.StatisticKey;
+import de.iani.cubesidestats.api.TimeFrame;
 
 public class PlayerStatisticsImplementation implements PlayerStatistics {
     private CubesideStatisticsImplementation stats;
@@ -49,12 +50,48 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void increaseScore(StatisticKey key, int amount) {
-        increaseScoreInMonth(key, amount, stats.getCurrentMonthKey());
+        if (!(key instanceof StatisticKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        final int month = stats.getCurrentMonthKey();
+        final int daykey = stats.getCurrentDayKey();
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    database.increaseScore(databaseId, (StatisticKeyImplementation) key, month, daykey, amount);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not increase score for " + playerId, e);
+                }
+            }
+        });
     }
 
     @Override
     public void setScore(StatisticKey key, int value) {
-        setScoreInMonth(key, value, stats.getCurrentMonthKey());
+        if (!(key instanceof StatisticKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        final int month = stats.getCurrentMonthKey();
+        final int daykey = stats.getCurrentDayKey();
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    database.setScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
+                }
+            }
+        });
     }
 
     @Override
@@ -64,7 +101,33 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void maxScore(StatisticKey key, int value, Callback<Boolean> updatedCallback) {
-        maxScoreInMonth(key, value, stats.getCurrentMonthKey(), updatedCallback);
+        if (!(key instanceof StatisticKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        final int month = stats.getCurrentMonthKey();
+        final int daykey = stats.getCurrentDayKey();
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    boolean result = database.maxScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
+                    if (updatedCallback != null) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                updatedCallback.call(result);
+                            }
+                        });
+                    }
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
+                }
+            }
+        });
     }
 
     @Override
@@ -74,33 +137,11 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void minScore(StatisticKey key, int value, Callback<Boolean> updatedCallback) {
-        minScoreInMonth(key, value, stats.getCurrentMonthKey(), updatedCallback);
-    }
-
-    @Override
-    public void getScore(StatisticKey key, Callback<Integer> scoreCallback) {
-        getScoreInMonth(key, -1, scoreCallback);
-    }
-
-    @Override
-    public void getPosition(StatisticKey key, Callback<Integer> positionCallback) {
-        getPositionInMonth(key, -1, positionCallback);
-    }
-
-    @Override
-    public void getScoreThisMonth(StatisticKey key, Callback<Integer> scoreCallback) {
-        getScoreInMonth(key, stats.getCurrentMonthKey(), scoreCallback);
-    }
-
-    @Override
-    public void getPositionThisMonth(StatisticKey key, Callback<Integer> positionCallback) {
-        getPositionInMonth(key, stats.getCurrentMonthKey(), positionCallback);
-    }
-
-    private void minScoreInMonth(StatisticKey key, int value, int month, Callback<Boolean> updatedCallback) {
         if (!(key instanceof StatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
+        final int month = stats.getCurrentMonthKey();
+        final int daykey = stats.getCurrentDayKey();
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
@@ -109,7 +150,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    boolean result = database.minScore(databaseId, (StatisticKeyImplementation) key, month, value);
+                    boolean result = database.minScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
                     if (updatedCallback != null) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
@@ -125,72 +166,24 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         });
     }
 
-    private void maxScoreInMonth(StatisticKey key, int value, int month, Callback<Boolean> updatedCallback) {
-        if (!(key instanceof StatisticKeyImplementation)) {
-            throw new IllegalArgumentException("key");
-        }
-        stats.getWorkerThread().addWork(new WorkEntry() {
-            @Override
-            public void process(StatisticsDatabase database) {
-                if (databaseId < 0) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
-                    return;
-                }
-                try {
-                    boolean result = database.maxScore(databaseId, (StatisticKeyImplementation) key, month, value);
-                    if (updatedCallback != null) {
-                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                            @Override
-                            public void run() {
-                                updatedCallback.call(result);
-                            }
-                        });
-                    }
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
-                }
-            }
-        });
+    @Override
+    public void getScore(StatisticKey key, TimeFrame timeFrame, Callback<Integer> scoreCallback) {
+        getScoreInMonth(key, getMonthKey(timeFrame), scoreCallback);
     }
 
-    private void setScoreInMonth(StatisticKey key, int value, int month) {
-        if (!(key instanceof StatisticKeyImplementation)) {
-            throw new IllegalArgumentException("key");
-        }
-        stats.getWorkerThread().addWork(new WorkEntry() {
-            @Override
-            public void process(StatisticsDatabase database) {
-                if (databaseId < 0) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
-                    return;
-                }
-                try {
-                    database.setScore(databaseId, (StatisticKeyImplementation) key, month, value);
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
-                }
-            }
-        });
+    @Override
+    public void getPosition(StatisticKey key, TimeFrame timeFrame, Callback<Integer> positionCallback) {
+        getPositionInMonth(key, getMonthKey(timeFrame), positionCallback);
     }
 
-    private void increaseScoreInMonth(StatisticKey key, int amount, int month) {
-        if (!(key instanceof StatisticKeyImplementation)) {
-            throw new IllegalArgumentException("key");
+    private int getMonthKey(TimeFrame timeFrame) {
+        int month = -1;
+        if (timeFrame == TimeFrame.MONTH) {
+            month = stats.getCurrentMonthKey();
+        } else if (timeFrame == TimeFrame.DAY) {
+            month = stats.getCurrentDayKey();
         }
-        stats.getWorkerThread().addWork(new WorkEntry() {
-            @Override
-            public void process(StatisticsDatabase database) {
-                if (databaseId < 0) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
-                    return;
-                }
-                try {
-                    database.increaseScore(databaseId, (StatisticKeyImplementation) key, month, amount);
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not increase score for " + playerId, e);
-                }
-            }
-        });
+        return month;
     }
 
     private void getScoreInMonth(StatisticKey key, int month, Callback<Integer> scoreCallback) {

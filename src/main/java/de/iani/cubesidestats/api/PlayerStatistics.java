@@ -19,13 +19,9 @@ public interface PlayerStatistics {
 
     public void minScore(StatisticKey key, int value, Callback<Boolean> updatedCallback);
 
-    public void getScore(StatisticKey key, Callback<Integer> scoreCallback);
+    public void getScore(StatisticKey key, TimeFrame timeFrame, Callback<Integer> scoreCallback);
 
-    public void getPosition(StatisticKey key, Callback<Integer> positionCallback);
-
-    public void getScoreThisMonth(StatisticKey key, Callback<Integer> scoreCallback);
-
-    public void getPositionThisMonth(StatisticKey key, Callback<Integer> positionCallback);
+    public void getPosition(StatisticKey key, TimeFrame timeFrame, Callback<Integer> positionCallback);
 
     public void grantAchivement(AchivementKey key);
 

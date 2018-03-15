@@ -236,7 +236,7 @@ public class StatisticsDatabase {
         });
     }
 
-    public void increaseScore(int databaseId, StatisticKeyImplementation key, int month, int amount) throws SQLException {
+    public void increaseScore(int databaseId, StatisticKeyImplementation key, int month, int day, int amount) throws SQLException {
         this.connection.runCommands(new SQLRunnable<Void>() {
             @Override
             public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
@@ -252,12 +252,16 @@ public class StatisticsDatabase {
                     smt.setInt(3, month);
                     smt.executeUpdate();
                 }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(3, day);
+                    smt.executeUpdate();
+                }
                 return null;
             }
         });
     }
 
-    public void setScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
+    public void setScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
         this.connection.runCommands(new SQLRunnable<Void>() {
             @Override
             public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
@@ -273,12 +277,16 @@ public class StatisticsDatabase {
                     smt.setInt(3, month);
                     smt.executeUpdate();
                 }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(3, day);
+                    smt.executeUpdate();
+                }
                 return null;
             }
         });
     }
 
-    public boolean maxScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
+    public boolean maxScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
         return this.connection.runCommands(new SQLRunnable<Boolean>() {
             @Override
             public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
@@ -305,12 +313,16 @@ public class StatisticsDatabase {
                     smt.setInt(3, month);
                     smt.executeUpdate();
                 }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(3, day);
+                    smt.executeUpdate();
+                }
                 return old == null || value > old.intValue();
             }
         });
     }
 
-    public boolean minScore(int databaseId, StatisticKeyImplementation key, int month, int value) throws SQLException {
+    public boolean minScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
         return this.connection.runCommands(new SQLRunnable<Boolean>() {
             @Override
             public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
@@ -335,6 +347,10 @@ public class StatisticsDatabase {
                 smt.executeUpdate();
                 if (month >= 0 && key.isMonthlyStats()) {
                     smt.setInt(3, month);
+                    smt.executeUpdate();
+                }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(3, day);
                     smt.executeUpdate();
                 }
                 return old == null || value < old.intValue();
