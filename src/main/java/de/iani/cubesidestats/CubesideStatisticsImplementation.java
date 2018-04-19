@@ -1,5 +1,10 @@
 package de.iani.cubesidestats;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.Calendar;
@@ -13,6 +18,7 @@ import org.bukkit.entity.Player;
 
 import de.iani.cubesidestats.StatisticsDatabase.ConfigDTO;
 import de.iani.cubesidestats.api.CubesideStatisticsAPI;
+import de.iani.cubesidestats.api.GamePlayerCount;
 import de.iani.cubesidestats.api.PlayerStatistics;
 import de.iani.cubesidestats.api.StatisticKey;
 
@@ -27,10 +33,13 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private final static int CONFIG_RELOAD_TICKS = 20 * 60 * 5;// 5 minutes (in ticks)
     private final static long MIN_CACHE_NANOS = 1_000_000_000L * 60 * 5;// 5 minutes (in nanos)
     private final Calendar calender = Calendar.getInstance();
+    private final UUID serverid;
+    private final GamePlayerCountImplementation gamePlayerCount;
 
     public CubesideStatisticsImplementation(CubesideStatistics plugin) throws SQLException {
         this.plugin = plugin;
         plugin.saveDefaultConfig();
+        serverid = loadOrCreateServerId();
         database = new StatisticsDatabase(this, new SQLConfig(plugin.getConfig().getConfigurationSection("database")));
 
         statisticKeys = new HashMap<>();
@@ -50,10 +59,46 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
         workerThread = new WorkerThread();
         workerThread.start();
+
+        gamePlayerCount = new GamePlayerCountImplementation(this);
+    }
+
+    private UUID loadOrCreateServerId() {
+        File serveridFile = new File(plugin.getDataFolder().getParentFile().getParentFile(), "serverid");
+        String serveridstring = null;
+        if (serveridFile.isFile()) {
+            try {
+                BufferedReader reader = new BufferedReader(new FileReader(serveridFile));
+                serveridstring = reader.readLine();
+                reader.close();
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        UUID localServerid = null;
+        try {
+            localServerid = serveridstring == null ? null : UUID.fromString(serveridstring);
+        } catch (IllegalArgumentException e) {
+            // ignored
+        }
+        if (localServerid == null) {
+            plugin.getLogger().info("Keine gültige Server-ID vorhanden! Generiere neue ID!");
+            localServerid = UUID.randomUUID();
+            try {
+                FileWriter writer = new FileWriter(serveridFile);
+                writer.write(localServerid.toString());
+                writer.flush();
+                writer.close();
+            } catch (IOException e) {
+                plugin.getLogger().log(Level.SEVERE, "Could not save server id file", e);
+            }
+        }
+        return localServerid;
     }
 
     public void shutdown() {
         if (workerThread != null) {
+            gamePlayerCount.clearLocalPlayers();
             workerThread.shutdown();
         }
     }
@@ -261,5 +306,14 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     public int getCurrentDayKey() {
         calender.setTimeInMillis(System.currentTimeMillis());
         return calender.get(Calendar.YEAR) * 1000 + calender.get(Calendar.DAY_OF_YEAR);
+    }
+
+    public UUID getServerId() {
+        return serverid;
+    }
+
+    @Override
+    public GamePlayerCount getGamePlayerCount() {
+        return gamePlayerCount;
     }
 }

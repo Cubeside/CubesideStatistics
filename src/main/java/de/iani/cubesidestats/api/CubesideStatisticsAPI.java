@@ -14,4 +14,6 @@ public interface CubesideStatisticsAPI {
     // public AchivementKey getAchivementKey(String id);
 
     // public boolean hasAchivementKey(String id);
+
+    public GamePlayerCount getGamePlayerCount();
 }

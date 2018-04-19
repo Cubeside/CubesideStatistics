@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,8 +35,12 @@ public class StatisticsDatabase {
     private final String maxScore;
     private final String minScore;
     private final String getScore;
-    private final String getPosition;
+    // private final String getPosition;
     private final String getTopScores;
+
+    private final String deleteThisServersPlayers;
+    private final String updateThisServerPlayers;
+    private final String getAllServersPlayers;
 
     private final String configSettingSerial = "serial";
 
@@ -59,9 +64,13 @@ public class StatisticsDatabase {
         maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
         minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
-        getPosition = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?)";
+        // getPosition = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?)";
 
         getTopScores = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?";
+
+        deleteThisServersPlayers = "DELETE FROM " + prefix + "_current_players WHERE server = ?";
+        updateThisServerPlayers = "INSERT INTO " + prefix + "_current_players (server, game, players) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE players = ?";
+        getAllServersPlayers = "SELECT game, SUM(players) as playersum FROM " + prefix + "_current_players  WHERE server != ? GROUP BY game";
     }
 
     private void updateTables(String prefix) throws SQLException {
@@ -98,6 +107,14 @@ public class StatisticsDatabase {
                     " `month` int(11) NOT NULL," + //
                     " `score` int(11) NOT NULL," + //
                     " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`)" + //
+                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                }
+                if (!sqlConnection.hasTable(prefix + "_current_players")) {
+                    smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_current_players` (" + //
+                    " `server` char(36) NOT NULL," + //
+                    " `game` varchar(100) NOT NULL," + //
+                    " `players` int(11) NOT NULL," + //
+                    " PRIMARY KEY (`game`,`server`)" + //
                     " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 return null;
@@ -397,6 +414,51 @@ public class StatisticsDatabase {
                     rv.add(new InternalPlayerWithScore(player, score, position));
                 }
                 results.close();
+                return rv;
+            }
+        });
+    }
+
+    public void deleteGamePlayers(UUID serverid) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(deleteThisServersPlayers);
+                smt.setString(1, serverid.toString());
+                smt.executeUpdate();
+                return null;
+            }
+        });
+    }
+
+    public void setGamePlayers(UUID serverid, String game, int players) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(updateThisServerPlayers);
+                smt.setString(1, serverid.toString());
+                smt.setString(2, game);
+                smt.setInt(3, players);
+                smt.setInt(4, players);
+                smt.executeUpdate();
+                return null;
+            }
+        });
+    }
+
+    public HashMap<String, Integer> getGamePlayers(UUID ignoreserverid) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<HashMap<String, Integer>>() {
+            @Override
+            public HashMap<String, Integer> execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getAllServersPlayers);
+                smt.setString(1, ignoreserverid.toString());
+                ResultSet rs = smt.executeQuery();
+                HashMap<String, Integer> rv = new HashMap<>();
+                while (rs.next()) {
+                    String game = rs.getString("game");
+                    int players = rs.getInt("playersum");
+                    rv.put(game, players);
+                }
                 return rv;
             }
         });
