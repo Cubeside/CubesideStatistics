@@ -14,6 +14,7 @@ public class GamePlayerCountImplementation implements GamePlayerCount {
     private final CubesideStatisticsImplementation stats;
     private final HashMap<String, Integer> localPlayers;
     private HashMap<String, Integer> globalPlayers;
+    private long lastUpdate;
 
     public GamePlayerCountImplementation(CubesideStatisticsImplementation stats) {
         this.stats = stats;
@@ -21,27 +22,28 @@ public class GamePlayerCountImplementation implements GamePlayerCount {
         this.globalPlayers = new HashMap<>();
 
         clearLocalPlayers();
-        stats.getPlugin().getServer().getScheduler().runTaskTimer(stats.getPlugin(), new Runnable() {
-            @Override
-            public void run() {
-                stats.getWorkerThread().addWork(new WorkEntry() {
-                    @Override
-                    public void process(StatisticsDatabase database) {
-                        try {
-                            HashMap<String, Integer> globalPlayersNew = database.getGamePlayers(stats.getServerId());
-                            new BukkitRunnable() {
-                                @Override
-                                public void run() {
-                                    globalPlayers = globalPlayersNew;
-                                }
-                            }.runTask(stats.getPlugin());
-                        } catch (SQLException e) {
-                            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get global player amount", e);
-                        }
-                    }
-                });
-            }
-        }, 200, 200);
+        // stats.getPlugin().getServer().getScheduler().runTaskTimer(stats.getPlugin(), new Runnable() {
+        // @Override
+        // public void run() {
+        // stats.getWorkerThread().addWork(new WorkEntry() {
+        // @Override
+        // public void process(StatisticsDatabase database) {
+        // try {
+        // HashMap<String, Integer> globalPlayersNew = database.getGamePlayers(stats.getServerId());
+        // new BukkitRunnable() {
+        // @Override
+        // public void run() {
+        // globalPlayers = globalPlayersNew;
+        // }
+        // }.runTask(stats.getPlugin());
+        // } catch (SQLException e) {
+        // stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get global player amount", e);
+        // }
+        // }
+        // });
+        // }
+        // }, 200, 200);
+        updateGlobalPlayerCount(null);
     }
 
     public void clearLocalPlayers() {
@@ -102,6 +104,40 @@ public class GamePlayerCountImplementation implements GamePlayerCount {
                         }
                     }
                 });
+            }
+        });
+    }
+
+    @Override
+    public void updateGlobalPlayerCount(Runnable callback) {
+        if (lastUpdate + 10000 > System.currentTimeMillis()) {
+            if (callback != null) {
+                callback.run();
+            }
+            return;
+        }
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                HashMap<String, Integer> globalPlayersNew = null;
+                try {
+                    globalPlayersNew = database.getGamePlayers(stats.getServerId());
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get global player amount", e);
+                }
+                HashMap<String, Integer> globalPlayersNew2 = globalPlayersNew;
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        if (globalPlayersNew2 != null) {
+                            globalPlayers = globalPlayersNew2;
+                        }
+                        lastUpdate = System.currentTimeMillis();
+                        if (callback != null) {
+                            callback.run();
+                        }
+                    }
+                }.runTask(stats.getPlugin());
             }
         });
     }

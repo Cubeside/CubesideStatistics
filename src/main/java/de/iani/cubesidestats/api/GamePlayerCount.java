@@ -10,4 +10,6 @@ public interface GamePlayerCount {
     public int getLocalPlayers(String game);
 
     public int getPlayers(String game);
+
+    public void updateGlobalPlayerCount(Runnable callback);
 }
