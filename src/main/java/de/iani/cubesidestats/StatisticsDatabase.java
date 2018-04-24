@@ -12,9 +12,9 @@ import java.util.List;
 import java.util.UUID;
 
 import de.iani.cubesidestats.api.StatisticKey;
-import de.iani.settings.sql.MySQLConnection;
-import de.iani.settings.sql.SQLConnection;
-import de.iani.settings.sql.SQLRunnable;
+import de.iani.cubesidestats.sql.MySQLConnection;
+import de.iani.cubesidestats.sql.SQLConnection;
+import de.iani.cubesidestats.sql.SQLRunnable;
 
 public class StatisticsDatabase {
     private SQLConnection connection;
