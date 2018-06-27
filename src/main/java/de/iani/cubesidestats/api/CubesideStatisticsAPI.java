@@ -1,6 +1,9 @@
 package de.iani.cubesidestats.api;
 
+import java.util.Collection;
 import java.util.UUID;
+
+import de.iani.cubesidestats.StatisticKeyImplementation;
 
 public interface CubesideStatisticsAPI {
     public PlayerStatistics getStatistics(UUID owner);
@@ -8,6 +11,8 @@ public interface CubesideStatisticsAPI {
     public StatisticKey getStatisticKey(String id);
 
     public StatisticKey getStatisticKey(String id, boolean create);
+
+    public Collection<StatisticKeyImplementation> getAllStatisticKeys();
 
     public boolean hasStatisticKey(String id);
 

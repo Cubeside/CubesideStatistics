@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.UUID;
@@ -210,6 +211,11 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     @Override
     public boolean hasStatisticKey(String id) {
         return statisticKeys.containsKey(id);
+    }
+
+    @Override
+    public Collection<StatisticKeyImplementation> getAllStatisticKeys() {
+        return Collections.unmodifiableCollection(statisticKeys.values());
     }
 
     public void playerJoined(Player player) {
