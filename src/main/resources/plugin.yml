@@ -4,5 +4,6 @@ version: ${project.version}-${build.number}
 description: CubesideStatistics
 authors:
   - Brokkonaut
+api-version: 1.13
 depend: [PlayerUUIDCache, CubesideSettings]
 # loadbefore: [Vault]
