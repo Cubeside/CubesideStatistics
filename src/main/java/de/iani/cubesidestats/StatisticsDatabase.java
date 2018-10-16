@@ -556,49 +556,55 @@ public class StatisticsDatabase {
             @Override
             public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(getAchivementLevel);
-                smt.setInt(1, databaseId);
-                smt.setInt(2, keyId);
-                ResultSet results = smt.executeQuery();
-                Integer rv = null;
-                if (results.next()) {
-                    rv = results.getInt("level");
-                }
-                results.close();
-                return rv == null ? 0 : rv;
+                return internalGetLevel(databaseId, sqlConnection, keyId);
             }
         });
     }
 
-    public void setAchivementLevel(int databaseId, AchivementKeyImplementation key, int level) throws SQLException {
-        this.connection.runCommands(new SQLRunnable<Void>() {
+    public Integer setAchivementLevel(int databaseId, AchivementKeyImplementation key, int level, boolean queryOld) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
             @Override
-            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
+                Integer oldLevel = queryOld ? internalGetLevel(databaseId, sqlConnection, keyId) : null;
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(setAchivementLevel);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, level);
                 smt.setInt(4, level);
                 smt.executeUpdate();
-                return null;
+                return oldLevel;
             }
         });
     }
 
-    public void maxAchivementLevel(int databaseId, AchivementKeyImplementation key, int level) throws SQLException {
-        this.connection.runCommands(new SQLRunnable<Void>() {
+    public Integer maxAchivementLevel(int databaseId, AchivementKeyImplementation key, int level, boolean queryOld) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
             @Override
-            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
+                Integer oldLevel = queryOld ? internalGetLevel(databaseId, sqlConnection, keyId) : null;
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(maxAchivementLevel);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, level);
                 smt.setInt(4, level);
                 smt.executeUpdate();
-                return null;
+                return oldLevel;
             }
         });
+    }
+
+    protected Integer internalGetLevel(int databaseId, SQLConnection sqlConnection, int keyId) throws SQLException {
+        PreparedStatement smt = sqlConnection.getOrCreateStatement(getAchivementLevel);
+        smt.setInt(1, databaseId);
+        smt.setInt(2, keyId);
+        ResultSet results = smt.executeQuery();
+        Integer rv = null;
+        if (results.next()) {
+            rv = results.getInt("level");
+        }
+        results.close();
+        return rv == null ? 0 : rv;
     }
 }

@@ -246,11 +246,21 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void grantAchivement(AchivementKey key) {
-        grantAchivement(key, 1);
+        grantAchivement(key, 1, null);
+    }
+
+    @Override
+    public void grantAchivement(AchivementKey key, Callback<Integer> updatedCallback) {
+        grantAchivement(key, 1, updatedCallback);
     }
 
     @Override
     public void grantAchivement(AchivementKey key, int level) {
+        grantAchivement(key, level, null);
+    }
+
+    @Override
+    public void grantAchivement(AchivementKey key, int level, Callback<Integer> updatedCallback) {
         if (!(key instanceof AchivementKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
@@ -265,7 +275,15 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    database.maxAchivementLevel(databaseId, (AchivementKeyImplementation) key, level);
+                    Integer oldLevel = database.maxAchivementLevel(databaseId, (AchivementKeyImplementation) key, level, updatedCallback != null);
+                    if (updatedCallback != null && (oldLevel == null || level != oldLevel)) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                updatedCallback.call(oldLevel);
+                            }
+                        });
+                    }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not grant achivement " + key.getName() + " for " + playerId, e);
                 }
@@ -275,6 +293,11 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void revokeAchivement(AchivementKey key) {
+        revokeAchivement(key, null);
+    }
+
+    @Override
+    public void revokeAchivement(AchivementKey key, Callback<Integer> updatedCallback) {
         if (!(key instanceof AchivementKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
@@ -286,7 +309,15 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    database.setAchivementLevel(databaseId, (AchivementKeyImplementation) key, 0);
+                    Integer oldLevel = database.setAchivementLevel(databaseId, (AchivementKeyImplementation) key, 0, updatedCallback != null);
+                    if (updatedCallback != null && oldLevel != null && oldLevel > 0) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                updatedCallback.call(oldLevel);
+                            }
+                        });
+                    }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not revoke achivement " + key.getName() + " for " + playerId, e);
                 }
