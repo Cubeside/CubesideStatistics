@@ -1,13 +1,13 @@
 package de.iani.cubesidestats.api;
 
 public interface AchivementKey {
+    public String getName();
+
     public void setDisplayName(String name);
 
-    public void getDisplayName();
+    public String getDisplayName();
 
-    public void setSupersedes(AchivementKey other);
+    public void setMaxLevel(int level);
 
-    public AchivementKey getSuperseded();
-
-    public void setAutoGrant(StatisticKey key, int requiredValue);
+    public int getMaxLevel();
 }

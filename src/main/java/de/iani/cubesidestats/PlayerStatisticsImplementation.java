@@ -246,20 +246,112 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public void grantAchivement(AchivementKey key) {
-        // TODO Auto-generated method stub
+        grantAchivement(key, 1);
+    }
 
+    @Override
+    public void grantAchivement(AchivementKey key, int level) {
+        if (!(key instanceof AchivementKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        if (level < 1 || level > key.getMaxLevel()) {
+            throw new IllegalArgumentException("level");
+        }
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    database.maxAchivementLevel(databaseId, (AchivementKeyImplementation) key, level);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not grant achivement " + key.getName() + " for " + playerId, e);
+                }
+            }
+        });
     }
 
     @Override
     public void revokeAchivement(AchivementKey key) {
-        // TODO Auto-generated method stub
-
+        if (!(key instanceof AchivementKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    database.setAchivementLevel(databaseId, (AchivementKeyImplementation) key, 0);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not revoke achivement " + key.getName() + " for " + playerId, e);
+                }
+            }
+        });
     }
 
     @Override
     public void hasAchivement(AchivementKey key, Callback<Boolean> achivementCallback) {
-        // TODO Auto-generated method stub
+        if (!(key instanceof AchivementKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        if (achivementCallback == null) {
+            throw new NullPointerException("achivementCallback");
+        }
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    Integer level = database.getAchivementLevel(databaseId, (AchivementKeyImplementation) key);
+                    stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                        @Override
+                        public void run() {
+                            achivementCallback.call(level > 0);
+                        }
+                    });
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get achivement " + key.getName() + " for " + playerId, e);
+                }
+            }
+        });
+    }
 
+    @Override
+    public void getAchivementLevel(AchivementKey key, Callback<Integer> achivementCallback) {
+        if (!(key instanceof AchivementKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        if (achivementCallback == null) {
+            throw new NullPointerException("achivementCallback");
+        }
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    Integer level = database.getAchivementLevel(databaseId, (AchivementKeyImplementation) key);
+                    stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                        @Override
+                        public void run() {
+                            achivementCallback.call(level);
+                        }
+                    });
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get achivement " + key.getName() + " for " + playerId, e);
+                }
+            }
+        });
     }
 
 }

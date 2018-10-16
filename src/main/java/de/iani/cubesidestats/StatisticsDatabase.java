@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.sql.MySQLConnection;
 import de.iani.cubesidestats.sql.SQLConnection;
 import de.iani.cubesidestats.sql.SQLRunnable;
@@ -29,6 +28,14 @@ public class StatisticsDatabase {
     private final String getAllStatsKeys;
     private final String createStatsKey;
     private final String updateStatsKey;
+
+    private final String getAllAchivementKeys;
+    private final String createAchivementKey;
+    private final String updateAchivementKey;
+
+    private final String setAchivementLevel;
+    private final String getAchivementLevel;
+    private final String maxAchivementLevel;
 
     private final String changeScore;
     private final String setScore;
@@ -58,6 +65,14 @@ public class StatisticsDatabase {
         getAllStatsKeys = "SELECT id, name, properties FROM " + prefix + "_stats";
         createStatsKey = "INSERT IGNORE INTO " + prefix + "_stats (name, properties) VALUE (?, ?)";
         updateStatsKey = "UPDATE " + prefix + "_stats SET properties = ? WHERE id = ?";
+
+        getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
+        createAchivementKey = "INSERT IGNORE INTO " + prefix + "_achivementkeys (name, properties) VALUE (?, ?)";
+        updateAchivementKey = "UPDATE " + prefix + "_achivementkeys SET properties = ? WHERE id = ?";
+
+        setAchivementLevel = "INSERT INTO " + prefix + "_achivements (playerid, achivmenentid, level) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE level = ?";
+        maxAchivementLevel = "INSERT INTO " + prefix + "_achivements (playerid, achivmenentid, level) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE level = GREATEST(level,?)";
+        getAchivementLevel = "SELECT level FROM " + prefix + "_achivements WHERE playerid = ? AND achivmenentid = ?";
 
         changeScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = score + ?";
         setScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = ?";
@@ -117,6 +132,22 @@ public class StatisticsDatabase {
                     " PRIMARY KEY (`game`,`server`)" + //
                     " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
+                if (!sqlConnection.hasTable(prefix + "_achivementkeys")) {
+                    smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_achivementkeys` (" + //
+                    " `id` int(11) AUTO_INCREMENT," + //
+                    " `name` varchar(255) NOT NULL," + //
+                    " `properties` text NOT NULL," + //
+                    " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
+                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                }
+                if (!sqlConnection.hasTable(prefix + "_achivements")) {
+                    smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_achivements` (" + //
+                    " `playerid` int(11) NOT NULL," + //
+                    " `achivmenentid` int(11) NOT NULL," + //
+                    " `level` int(11) NOT NULL," + //
+                    " PRIMARY KEY (`playerid`,`achivmenentid`)" + //
+                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                }
                 return null;
             }
         });
@@ -129,10 +160,12 @@ public class StatisticsDatabase {
     public class ConfigDTO {
         private final int configSerial;
         private final Collection<StatisticKeyImplementation> statisticKeys;
+        private final Collection<AchivementKeyImplementation> achivementKeys;
 
-        public ConfigDTO(int configSerial, Collection<StatisticKeyImplementation> statisticKeys) {
+        public ConfigDTO(int configSerial, Collection<StatisticKeyImplementation> statisticKeys, Collection<AchivementKeyImplementation> achivementKeys) {
             this.configSerial = configSerial;
             this.statisticKeys = statisticKeys;
+            this.achivementKeys = achivementKeys;
         }
 
         public int getConfigSerial() {
@@ -141,6 +174,10 @@ public class StatisticsDatabase {
 
         public Collection<StatisticKeyImplementation> getStatisticKeys() {
             return statisticKeys;
+        }
+
+        public Collection<AchivementKeyImplementation> getAchivementKeys() {
+            return achivementKeys;
         }
     }
 
@@ -169,11 +206,10 @@ public class StatisticsDatabase {
         });
     }
 
-    public void updateStatisticKey(StatisticKey key) throws SQLException {
+    public void updateStatisticKey(StatisticKeyImplementation impl) throws SQLException {
         this.connection.runCommands(new SQLRunnable<Void>() {
             @Override
             public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
-                StatisticKeyImplementation impl = (StatisticKeyImplementation) key;
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(updateStatsKey);
                 smt.setString(1, impl.getSerializedProperties());
                 smt.setInt(2, impl.getId());
@@ -218,7 +254,16 @@ public class StatisticsDatabase {
                 }
                 results.close();
 
-                return new ConfigDTO(configSerial, keys);
+                ArrayList<AchivementKeyImplementation> achivkeys = new ArrayList<>();
+
+                smt = sqlConnection.getOrCreateStatement(getAllAchivementKeys);
+                results = smt.executeQuery();
+                while (results.next()) {
+                    achivkeys.add(new AchivementKeyImplementation(results.getInt("id"), results.getString("name"), results.getString("properties"), impl));
+                }
+                results.close();
+
+                return new ConfigDTO(configSerial, keys, achivkeys);
             }
         });
     }
@@ -460,6 +505,99 @@ public class StatisticsDatabase {
                     rv.put(game, players);
                 }
                 return rv;
+            }
+        });
+    }
+
+    public AchivementKeyImplementation createAchivementKey(String name) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<AchivementKeyImplementation>() {
+            @Override
+            public AchivementKeyImplementation execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(createAchivementKey, Statement.RETURN_GENERATED_KEYS);
+                smt.setString(1, name);
+                smt.setString(2, "");
+                smt.executeUpdate();
+
+                Integer id = null;
+                ResultSet results = smt.getGeneratedKeys();
+                if (results.next()) {
+                    id = results.getInt(1);
+                }
+                results.close();
+
+                if (id == null) {
+                    return null;
+                }
+                internalIncreaseConfigSerial(connection, sqlConnection);
+                return new AchivementKeyImplementation(id, name, null, impl);
+            }
+        });
+    }
+
+    public void updateAchivementKey(AchivementKeyImplementation impl) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(updateAchivementKey);
+                smt.setString(1, impl.getSerializedProperties());
+                smt.setInt(2, impl.getId());
+                // int rows =
+                smt.executeUpdate();
+                // StatisticsDatabase.this.impl.getPlugin().getLogger().info(impl.getId() + " - " + impl.getSerializedProperties());
+                // StatisticsDatabase.this.impl.getPlugin().getLogger().info("Rows: " + rows);
+                internalIncreaseConfigSerial(connection, sqlConnection);
+                return null;
+            }
+        });
+    }
+
+    public Integer getAchivementLevel(int databaseId, AchivementKeyImplementation key) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getAchivementLevel);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                ResultSet results = smt.executeQuery();
+                Integer rv = null;
+                if (results.next()) {
+                    rv = results.getInt("level");
+                }
+                results.close();
+                return rv == null ? 0 : rv;
+            }
+        });
+    }
+
+    public void setAchivementLevel(int databaseId, AchivementKeyImplementation key, int level) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(setAchivementLevel);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                smt.setInt(3, level);
+                smt.setInt(4, level);
+                smt.executeUpdate();
+                return null;
+            }
+        });
+    }
+
+    public void maxAchivementLevel(int databaseId, AchivementKeyImplementation key, int level) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(maxAchivementLevel);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                smt.setInt(3, level);
+                smt.setInt(4, level);
+                smt.executeUpdate();
+                return null;
             }
         });
     }

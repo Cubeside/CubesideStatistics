@@ -35,7 +35,7 @@ public class StatisticKeyImplementation implements StatisticKey {
             try {
                 conf.loadFromString(properties);
             } catch (InvalidConfigurationException e) {
-                impl.getPlugin().getLogger().log(Level.SEVERE, "Could not load properties for key " + name + " (" + id + ")", e);
+                impl.getPlugin().getLogger().log(Level.SEVERE, "Could not load properties for statistics key " + name + " (" + id + ")", e);
             }
         }
         displayName = conf.getString("displayName");

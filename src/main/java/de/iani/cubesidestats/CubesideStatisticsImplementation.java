@@ -18,6 +18,7 @@ import java.util.logging.Level;
 import org.bukkit.entity.Player;
 
 import de.iani.cubesidestats.StatisticsDatabase.ConfigDTO;
+import de.iani.cubesidestats.api.AchivementKey;
 import de.iani.cubesidestats.api.CubesideStatisticsAPI;
 import de.iani.cubesidestats.api.GamePlayerCount;
 import de.iani.cubesidestats.api.PlayerStatistics;
@@ -25,6 +26,7 @@ import de.iani.cubesidestats.api.StatisticKey;
 
 public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private HashMap<String, StatisticKeyImplementation> statisticKeys;
+    private HashMap<String, AchivementKeyImplementation> achivementKeys;
     private HashMap<UUID, PlayerStatisticsImplementation> onlinePlayers;
     private HashMap<UUID, TimestampedValue<PlayerStatisticsImplementation>> offlinePlayers;
     private StatisticsDatabase database;
@@ -44,6 +46,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         database = new StatisticsDatabase(this, new SQLConfig(plugin.getConfig().getConfigurationSection("database")));
 
         statisticKeys = new HashMap<>();
+        achivementKeys = new HashMap<>();
         onlinePlayers = new HashMap<>();
         offlinePlayers = new HashMap<>();
 
@@ -143,6 +146,15 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                             statisticKeys.put(e.getName(), e);
                         }
                     }
+                    Collection<AchivementKeyImplementation> keys2 = config.getAchivementKeys();
+                    for (AchivementKeyImplementation e : keys2) {
+                        AchivementKeyImplementation old = achivementKeys.get(e.getName());
+                        if (old != null) {
+                            old.copyPropertiesFrom(e);
+                        } else {
+                            achivementKeys.put(e.getName(), e);
+                        }
+                    }
                     plugin.getLogger().info("Reloaded config from the database");
                 }
             };
@@ -214,7 +226,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     }
 
     @Override
-    public Collection<StatisticKeyImplementation> getAllStatisticKeys() {
+    public Collection<? extends StatisticKey> getAllStatisticKeys() {
         return Collections.unmodifiableCollection(statisticKeys.values());
     }
 
@@ -321,5 +333,39 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     @Override
     public GamePlayerCount getGamePlayerCount() {
         return gamePlayerCount;
+    }
+
+    @Override
+    public AchivementKey getAchivementKey(String id) {
+        return getAchivementKey(id, true);
+    }
+
+    @Override
+    public AchivementKey getAchivementKey(String id, boolean create) {
+        AchivementKeyImplementation existing = achivementKeys.get(id);
+        if (existing == null && create) {
+            reloadConfigNow();
+            existing = achivementKeys.get(id);
+            if (existing == null) {
+                try {
+                    existing = database.createAchivementKey(id);
+                    achivementKeys.put(existing.getName(), existing);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Could not create statistics key", e);
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return existing;
+    }
+
+    @Override
+    public Collection<? extends AchivementKey> getAllAchivementKeys() {
+        return Collections.unmodifiableCollection(achivementKeys.values());
+    }
+
+    @Override
+    public boolean hasAchivementKey(String id) {
+        return achivementKeys.containsKey(id);
     }
 }

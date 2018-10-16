@@ -25,8 +25,12 @@ public interface PlayerStatistics {
 
     public void grantAchivement(AchivementKey key);
 
+    public void grantAchivement(AchivementKey key, int level);
+
     public void revokeAchivement(AchivementKey key);
 
     public void hasAchivement(AchivementKey key, Callback<Boolean> achivementCallback);
+
+    public void getAchivementLevel(AchivementKey key, Callback<Integer> achivementCallback);
 
 }
