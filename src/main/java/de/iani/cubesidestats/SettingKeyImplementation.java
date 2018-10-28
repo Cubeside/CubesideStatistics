@@ -71,7 +71,7 @@ public class SettingKeyImplementation implements SettingKey {
 
     @Override
     public void setDisplayName(String name) {
-        if (!Objects.equals(this.name, name)) {
+        if (!Objects.equals(this.displayName, name)) {
             this.displayName = name;
             save();
         }
