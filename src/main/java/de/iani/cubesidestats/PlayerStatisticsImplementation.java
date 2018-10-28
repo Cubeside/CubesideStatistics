@@ -45,7 +45,9 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
             public void process(StatisticsDatabase database) {
                 try {
                     databaseId = database.getOrCreatePlayerId(player);
-                    internalLoadSettings(settingKeys, database);
+                    if (settingKeys != null) {
+                        internalLoadSettings(settingKeys, database);
+                    }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not load database id or settings for " + playerId, e);
                 }
