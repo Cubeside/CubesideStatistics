@@ -58,6 +58,30 @@ public interface CubesideStatisticsAPI {
     public boolean hasAchivementKey(String id);
 
     /**
+     * Gets an existing setting key or creates a new one.
+     *
+     * @param id
+     *            the id of the setting key
+     * @return the setting key
+     */
+    public SettingKey getSettingKey(String id);
+
+    /**
+     * Gets an existing setting key or creates a new one if it does not exist and create is true
+     *
+     * @param id
+     *            the id of the setting key
+     * @param create
+     *            true if the key should be created if it does not exist
+     * @return the setting key, this will never be null if create is true
+     */
+    public SettingKey getSettingKey(String id, boolean create);
+
+    public Collection<? extends SettingKey> getAllSettingKeys();
+
+    public boolean hasSettingKey(String id);
+
+    /**
      * Gets the player count manager that allows to set current player counts for different games
      *
      * @return the player count manger

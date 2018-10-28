@@ -7,54 +7,52 @@ import java.util.logging.Level;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import com.google.common.base.Preconditions;
-
 import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
-import de.iani.cubesidestats.api.AchivementKey;
+import de.iani.cubesidestats.api.SettingKey;
 
-public class AchivementKeyImplementation implements AchivementKey {
+public class SettingKeyImplementation implements SettingKey {
 
     private final int id;
     private final String name;
     private final CubesideStatisticsImplementation stats;
 
     private String displayName;
-    private int maxLevel;
+    private int def;
 
-    public AchivementKeyImplementation(int id, String name, String properties, CubesideStatisticsImplementation impl) {
+    public SettingKeyImplementation(int id, String name, String properties, CubesideStatisticsImplementation impl) {
         this.id = id;
         this.name = name;
         this.stats = impl;
-        this.maxLevel = 1;
+        this.def = 0;
 
         YamlConfiguration conf = new YamlConfiguration();
         if (properties != null) {
             try {
                 conf.loadFromString(properties);
             } catch (InvalidConfigurationException e) {
-                impl.getPlugin().getLogger().log(Level.SEVERE, "Could not load properties for achivement key " + name + " (" + id + ")", e);
+                impl.getPlugin().getLogger().log(Level.SEVERE, "Could not load properties for settings key " + name + " (" + id + ")", e);
             }
         }
         displayName = conf.getString("displayName");
-        maxLevel = Math.max(conf.getInt("maxLevel"), 1);
+        def = conf.getInt("default");
     }
 
     public String getSerializedProperties() {
         YamlConfiguration conf = new YamlConfiguration();
         conf.set("displayName", displayName);
-        conf.set("maxLevel", maxLevel);
+        conf.set("default", def);
         return conf.saveToString();
     }
 
     private void save() {
-        AchivementKeyImplementation clone = new AchivementKeyImplementation(id, name, null, stats);
+        SettingKeyImplementation clone = new SettingKeyImplementation(id, name, null, stats);
         clone.copyPropertiesFrom(this);
 
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
                 try {
-                    database.updateAchivementKey(clone);
+                    database.updateSettingKey(clone);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not save achivement key " + name, e);
                 }
@@ -85,21 +83,20 @@ public class AchivementKeyImplementation implements AchivementKey {
     }
 
     @Override
-    public void setMaxLevel(int level) {
-        Preconditions.checkArgument(level >= 1, "level must be 1 or more");
-        if (this.maxLevel != level) {
-            this.maxLevel = level;
+    public void setDefault(int def) {
+        if (this.def != def) {
+            this.def = def;
             save();
         }
     }
 
     @Override
-    public int getMaxLevel() {
-        return maxLevel;
+    public int getDefault() {
+        return def;
     }
 
-    public void copyPropertiesFrom(AchivementKeyImplementation e) {
+    public void copyPropertiesFrom(SettingKeyImplementation e) {
         displayName = e.displayName;
-        maxLevel = e.maxLevel;
+        def = e.def;
     }
 }

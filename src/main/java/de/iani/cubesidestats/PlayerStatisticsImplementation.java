@@ -1,22 +1,34 @@
 package de.iani.cubesidestats;
 
 import java.sql.SQLException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.logging.Level;
+
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
 import de.iani.cubesidestats.api.AchivementKey;
 import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.PlayerStatistics;
+import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
+import de.iani.cubesidestats.api.event.PlayerSettingsLoadedEvent;
 
 public class PlayerStatisticsImplementation implements PlayerStatistics {
     private CubesideStatisticsImplementation stats;
     private final UUID playerId;
     private int databaseId;
+    private HashSet<SettingKeyImplementation> doNotLoadSettings;
+    private final HashMap<SettingKeyImplementation, Integer> settings;
+    private boolean settingsLoaded;
 
-    public PlayerStatisticsImplementation(CubesideStatisticsImplementation stats, UUID player) {
+    public PlayerStatisticsImplementation(CubesideStatisticsImplementation stats, UUID player, Collection<SettingKeyImplementation> settingKeys) {
         if (player == null) {
             throw new NullPointerException("player");
         }
@@ -26,16 +38,57 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         this.stats = stats;
         playerId = player;
         databaseId = -1;
+        this.settingsLoaded = false;
+        this.settings = new HashMap<>();
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
                 try {
                     databaseId = database.getOrCreatePlayerId(player);
+                    internalLoadSettings(settingKeys, database);
                 } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not load database id for " + playerId, e);
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not load database id or settings for " + playerId, e);
                 }
             }
         });
+    }
+
+    public PlayerStatisticsImplementation reloadSettingsAsync(Collection<SettingKeyImplementation> settingKeys) {
+        this.settings.clear();
+        doNotLoadSettings = null;
+        settingsLoaded = false;
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                try {
+                    internalLoadSettings(settingKeys, database);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not load settings for " + playerId, e);
+                }
+            }
+        });
+        return this;
+    }
+
+    protected void internalLoadSettings(Collection<SettingKeyImplementation> settingKeys, StatisticsDatabase database) throws SQLException {
+        HashMap<SettingKeyImplementation, Integer> settingsTemp = database.getSettingValues(databaseId, settingKeys);
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Entry<SettingKeyImplementation, Integer> e : settingsTemp.entrySet()) {
+                    SettingKeyImplementation key = e.getKey();
+                    if (doNotLoadSettings == null || !doNotLoadSettings.contains(key)) {
+                        settings.put(key, e.getValue());
+                    }
+                }
+                doNotLoadSettings = null;
+                settingsLoaded = true;
+                Player owner = stats.getPlugin().getServer().getPlayer(playerId);
+                if (owner != null) {
+                    stats.getPlugin().getServer().getPluginManager().callEvent(new PlayerSettingsLoadedEvent(owner));
+                }
+            }
+        }.runTask(stats.getPlugin());
     }
 
     @Override
@@ -385,4 +438,43 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         });
     }
 
+    public boolean areSettingsLoaded() {
+        return settingsLoaded;
+    }
+
+    public Integer getSettingValueIfLoaded(SettingKey setting) {
+        return settings.get(setting);
+    }
+
+    public int getSettingValueOrDefault(SettingKey setting) {
+        Integer value = getSettingValueIfLoaded(setting);
+        return value != null ? value.intValue() : setting.getDefault();
+    }
+
+    public void setSettingValue(SettingKey key, int value) {
+        if (!(key instanceof SettingKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        settings.put((SettingKeyImplementation) key, value);
+        if (!settingsLoaded) {
+            if (doNotLoadSettings == null) {
+                doNotLoadSettings = new HashSet<>();
+            }
+            doNotLoadSettings.add((SettingKeyImplementation) key);
+        }
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    database.setSettingValue(databaseId, (SettingKeyImplementation) key, value, false);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set setting value for " + playerId, e);
+                }
+            }
+        });
+    }
 }

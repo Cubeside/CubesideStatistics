@@ -29,6 +29,14 @@ public class StatisticsDatabase {
     private final String createStatsKey;
     private final String updateStatsKey;
 
+    private final String changeScore;
+    private final String setScore;
+    private final String maxScore;
+    private final String minScore;
+    private final String getScore;
+    // private final String getPosition;
+    private final String getTopScores;
+
     private final String getAllAchivementKeys;
     private final String createAchivementKey;
     private final String updateAchivementKey;
@@ -37,13 +45,13 @@ public class StatisticsDatabase {
     private final String getAchivementLevel;
     private final String maxAchivementLevel;
 
-    private final String changeScore;
-    private final String setScore;
-    private final String maxScore;
-    private final String minScore;
-    private final String getScore;
-    // private final String getPosition;
-    private final String getTopScores;
+    private final String getAllSettingKeys;
+    private final String createSettingKey;
+    private final String updateSettingKey;
+
+    private final String setSettingValue;
+    private final String getSettingValue;
+    private final String getSettingValuesPlayer;
 
     private final String deleteThisServersPlayers;
     private final String updateThisServerPlayers;
@@ -66,14 +74,6 @@ public class StatisticsDatabase {
         createStatsKey = "INSERT IGNORE INTO " + prefix + "_stats (name, properties) VALUE (?, ?)";
         updateStatsKey = "UPDATE " + prefix + "_stats SET properties = ? WHERE id = ?";
 
-        getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
-        createAchivementKey = "INSERT IGNORE INTO " + prefix + "_achivementkeys (name, properties) VALUE (?, ?)";
-        updateAchivementKey = "UPDATE " + prefix + "_achivementkeys SET properties = ? WHERE id = ?";
-
-        setAchivementLevel = "INSERT INTO " + prefix + "_achivements (playerid, achivmenentid, level) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE level = ?";
-        maxAchivementLevel = "INSERT INTO " + prefix + "_achivements (playerid, achivmenentid, level) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE level = GREATEST(level,?)";
-        getAchivementLevel = "SELECT level FROM " + prefix + "_achivements WHERE playerid = ? AND achivmenentid = ?";
-
         changeScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = score + ?";
         setScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = ?";
         maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
@@ -82,6 +82,22 @@ public class StatisticsDatabase {
         // getPosition = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?)";
 
         getTopScores = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?";
+
+        getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
+        createAchivementKey = "INSERT IGNORE INTO " + prefix + "_achivementkeys (name, properties) VALUE (?, ?)";
+        updateAchivementKey = "UPDATE " + prefix + "_achivementkeys SET properties = ? WHERE id = ?";
+
+        setAchivementLevel = "INSERT INTO " + prefix + "_achivements (playerid, achivmenentid, level) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE level = ?";
+        maxAchivementLevel = "INSERT INTO " + prefix + "_achivements (playerid, achivmenentid, level) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE level = GREATEST(level,?)";
+        getAchivementLevel = "SELECT level FROM " + prefix + "_achivements WHERE playerid = ? AND achivmenentid = ?";
+
+        getAllSettingKeys = "SELECT id, name, properties FROM " + prefix + "_settingkeys";
+        createSettingKey = "INSERT IGNORE INTO " + prefix + "_settingkeys (name, properties) VALUE (?, ?)";
+        updateSettingKey = "UPDATE " + prefix + "_settingkeys SET properties = ? WHERE id = ?";
+
+        setSettingValue = "INSERT INTO " + prefix + "_settings (playerid, settingid, value) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE value = ?";
+        getSettingValue = "SELECT value FROM " + prefix + "_settings WHERE playerid = ? AND settingid = ?";
+        getSettingValuesPlayer = "SELECT settingid, value FROM " + prefix + "_settings WHERE playerid = ?";
 
         deleteThisServersPlayers = "DELETE FROM " + prefix + "_current_players WHERE server = ?";
         updateThisServerPlayers = "INSERT INTO " + prefix + "_current_players (server, game, players) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE players = ?";
@@ -148,6 +164,23 @@ public class StatisticsDatabase {
                     " PRIMARY KEY (`playerid`,`achivmenentid`)" + //
                     " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
+
+                if (!sqlConnection.hasTable(prefix + "_settingkeys")) {
+                    smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_settingkeys` (" + //
+                    " `id` int(11) AUTO_INCREMENT," + //
+                    " `name` varchar(255) NOT NULL," + //
+                    " `properties` text NOT NULL," + //
+                    " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
+                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                }
+                if (!sqlConnection.hasTable(prefix + "_settings")) {
+                    smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_settings` (" + //
+                    " `playerid` int(11) NOT NULL," + //
+                    " `settingid` int(11) NOT NULL," + //
+                    " `value` int(11) NOT NULL," + //
+                    " PRIMARY KEY (`playerid`,`settingid`)" + //
+                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                }
                 return null;
             }
         });
@@ -161,11 +194,13 @@ public class StatisticsDatabase {
         private final int configSerial;
         private final Collection<StatisticKeyImplementation> statisticKeys;
         private final Collection<AchivementKeyImplementation> achivementKeys;
+        private final Collection<SettingKeyImplementation> settingKeys;
 
-        public ConfigDTO(int configSerial, Collection<StatisticKeyImplementation> statisticKeys, Collection<AchivementKeyImplementation> achivementKeys) {
+        public ConfigDTO(int configSerial, Collection<StatisticKeyImplementation> statisticKeys, Collection<AchivementKeyImplementation> achivementKeys, Collection<SettingKeyImplementation> settingKeys) {
             this.configSerial = configSerial;
             this.statisticKeys = statisticKeys;
             this.achivementKeys = achivementKeys;
+            this.settingKeys = settingKeys;
         }
 
         public int getConfigSerial() {
@@ -178,6 +213,10 @@ public class StatisticsDatabase {
 
         public Collection<AchivementKeyImplementation> getAchivementKeys() {
             return achivementKeys;
+        }
+
+        public Collection<SettingKeyImplementation> getSettingKeys() {
+            return settingKeys;
         }
     }
 
@@ -245,17 +284,15 @@ public class StatisticsDatabase {
                     return null;
                 }
 
-                ArrayList<StatisticKeyImplementation> keys = new ArrayList<>();
-
+                ArrayList<StatisticKeyImplementation> statskeys = new ArrayList<>();
                 smt = sqlConnection.getOrCreateStatement(getAllStatsKeys);
                 results = smt.executeQuery();
                 while (results.next()) {
-                    keys.add(new StatisticKeyImplementation(results.getInt("id"), results.getString("name"), results.getString("properties"), impl));
+                    statskeys.add(new StatisticKeyImplementation(results.getInt("id"), results.getString("name"), results.getString("properties"), impl));
                 }
                 results.close();
 
                 ArrayList<AchivementKeyImplementation> achivkeys = new ArrayList<>();
-
                 smt = sqlConnection.getOrCreateStatement(getAllAchivementKeys);
                 results = smt.executeQuery();
                 while (results.next()) {
@@ -263,7 +300,15 @@ public class StatisticsDatabase {
                 }
                 results.close();
 
-                return new ConfigDTO(configSerial, keys, achivkeys);
+                ArrayList<SettingKeyImplementation> settingkeys = new ArrayList<>();
+                smt = sqlConnection.getOrCreateStatement(getAllSettingKeys);
+                results = smt.executeQuery();
+                while (results.next()) {
+                    settingkeys.add(new SettingKeyImplementation(results.getInt("id"), results.getString("name"), results.getString("properties"), impl));
+                }
+                results.close();
+
+                return new ConfigDTO(configSerial, statskeys, achivkeys, settingkeys);
             }
         });
     }
@@ -606,5 +651,109 @@ public class StatisticsDatabase {
         }
         results.close();
         return rv == null ? 0 : rv;
+    }
+
+    public SettingKeyImplementation createSettingKey(String name) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<SettingKeyImplementation>() {
+            @Override
+            public SettingKeyImplementation execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(createSettingKey, Statement.RETURN_GENERATED_KEYS);
+                smt.setString(1, name);
+                smt.setString(2, "");
+                smt.executeUpdate();
+
+                Integer id = null;
+                ResultSet results = smt.getGeneratedKeys();
+                if (results.next()) {
+                    id = results.getInt(1);
+                }
+                results.close();
+
+                if (id == null) {
+                    return null;
+                }
+                internalIncreaseConfigSerial(connection, sqlConnection);
+                return new SettingKeyImplementation(id, name, null, impl);
+            }
+        });
+    }
+
+    public void updateSettingKey(SettingKeyImplementation impl) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(updateSettingKey);
+                smt.setString(1, impl.getSerializedProperties());
+                smt.setInt(2, impl.getId());
+                smt.executeUpdate();
+                internalIncreaseConfigSerial(connection, sqlConnection);
+                return null;
+            }
+        });
+    }
+
+    public Integer getSettingValue(int databaseId, SettingKeyImplementation key) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                return internalGetSettingValue(databaseId, sqlConnection, keyId);
+            }
+        });
+    }
+
+    public Integer setSettingValue(int databaseId, SettingKeyImplementation key, int value, boolean queryOld) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                Integer oldLevel = queryOld ? internalGetSettingValue(databaseId, sqlConnection, keyId) : null;
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(setSettingValue);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                smt.setInt(3, value);
+                smt.setInt(4, value);
+                smt.executeUpdate();
+                return oldLevel;
+            }
+        });
+    }
+
+    protected Integer internalGetSettingValue(int databaseId, SQLConnection sqlConnection, int keyId) throws SQLException {
+        PreparedStatement smt = sqlConnection.getOrCreateStatement(getSettingValue);
+        smt.setInt(1, databaseId);
+        smt.setInt(2, keyId);
+        ResultSet results = smt.executeQuery();
+        Integer rv = null;
+        if (results.next()) {
+            rv = results.getInt("value");
+        }
+        results.close();
+        return rv == null ? 0 : rv;
+    }
+
+    public HashMap<SettingKeyImplementation, Integer> getSettingValues(int databaseId, Collection<SettingKeyImplementation> keys) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<HashMap<SettingKeyImplementation, Integer>>() {
+            @Override
+            public HashMap<SettingKeyImplementation, Integer> execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                HashMap<SettingKeyImplementation, Integer> result = new HashMap<>();
+                HashMap<Integer, SettingKeyImplementation> tempKeyMap = new HashMap<>();
+                for (SettingKeyImplementation key : keys) {
+                    tempKeyMap.put(key.getId(), key);
+                }
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getSettingValuesPlayer);
+                smt.setInt(1, databaseId);
+                ResultSet results = smt.executeQuery();
+                while (results.next()) {
+                    SettingKeyImplementation key = tempKeyMap.get(results.getInt("settingid"));
+                    int value = results.getInt("value");
+                    if (key != null) {
+                        result.put(key, value);
+                    }
+                }
+                results.close();
+                return result;
+            }
+        });
     }
 }

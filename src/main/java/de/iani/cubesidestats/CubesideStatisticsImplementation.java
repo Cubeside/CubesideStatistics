@@ -22,11 +22,13 @@ import de.iani.cubesidestats.api.AchivementKey;
 import de.iani.cubesidestats.api.CubesideStatisticsAPI;
 import de.iani.cubesidestats.api.GamePlayerCount;
 import de.iani.cubesidestats.api.PlayerStatistics;
+import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
 
 public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private HashMap<String, StatisticKeyImplementation> statisticKeys;
     private HashMap<String, AchivementKeyImplementation> achivementKeys;
+    private HashMap<String, SettingKeyImplementation> settingKeys;
     private HashMap<UUID, PlayerStatisticsImplementation> onlinePlayers;
     private HashMap<UUID, TimestampedValue<PlayerStatisticsImplementation>> offlinePlayers;
     private StatisticsDatabase database;
@@ -47,6 +49,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
         statisticKeys = new HashMap<>();
         achivementKeys = new HashMap<>();
+        settingKeys = new HashMap<>();
         onlinePlayers = new HashMap<>();
         offlinePlayers = new HashMap<>();
 
@@ -137,8 +140,8 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                         return; // we already have the current config
                     }
                     configSerial = config.getConfigSerial();
-                    Collection<StatisticKeyImplementation> keys = config.getStatisticKeys();
-                    for (StatisticKeyImplementation e : keys) {
+                    Collection<StatisticKeyImplementation> newStatisticKeys = config.getStatisticKeys();
+                    for (StatisticKeyImplementation e : newStatisticKeys) {
                         StatisticKeyImplementation old = statisticKeys.get(e.getName());
                         if (old != null) {
                             old.copyPropertiesFrom(e);
@@ -146,13 +149,22 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                             statisticKeys.put(e.getName(), e);
                         }
                     }
-                    Collection<AchivementKeyImplementation> keys2 = config.getAchivementKeys();
-                    for (AchivementKeyImplementation e : keys2) {
+                    Collection<AchivementKeyImplementation> newAchivementKeys = config.getAchivementKeys();
+                    for (AchivementKeyImplementation e : newAchivementKeys) {
                         AchivementKeyImplementation old = achivementKeys.get(e.getName());
                         if (old != null) {
                             old.copyPropertiesFrom(e);
                         } else {
                             achivementKeys.put(e.getName(), e);
+                        }
+                    }
+                    Collection<SettingKeyImplementation> newSettingKeys = config.getSettingKeys();
+                    for (SettingKeyImplementation e : newSettingKeys) {
+                        SettingKeyImplementation old = settingKeys.get(e.getName());
+                        if (old != null) {
+                            old.copyPropertiesFrom(e);
+                        } else {
+                            settingKeys.put(e.getName(), e);
                         }
                     }
                     plugin.getLogger().info("Reloaded config from the database");
@@ -178,7 +190,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         if (timestampedStats != null) {
             return timestampedStats.get();
         }
-        stats = new PlayerStatisticsImplementation(this, owner);
+        stats = new PlayerStatisticsImplementation(this, owner, null);
         offlinePlayers.put(owner, new TimestampedValue<PlayerStatisticsImplementation>(stats));
         return stats;
     }
@@ -232,7 +244,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
     public void playerJoined(Player player) {
         TimestampedValue<PlayerStatisticsImplementation> old = offlinePlayers.remove(player.getUniqueId());
-        onlinePlayers.put(player.getUniqueId(), old == null ? new PlayerStatisticsImplementation(this, player.getUniqueId()) : old.get());
+        onlinePlayers.put(player.getUniqueId(), old == null ? new PlayerStatisticsImplementation(this, player.getUniqueId(), settingKeys.values()) : old.get().reloadSettingsAsync(settingKeys.values()));
     }
 
     public void playerDisconnected(Player player) {
@@ -367,5 +379,39 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     @Override
     public boolean hasAchivementKey(String id) {
         return achivementKeys.containsKey(id);
+    }
+
+    @Override
+    public SettingKey getSettingKey(String id) {
+        return getSettingKey(id, true);
+    }
+
+    @Override
+    public SettingKey getSettingKey(String id, boolean create) {
+        SettingKeyImplementation existing = settingKeys.get(id);
+        if (existing == null && create) {
+            reloadConfigNow();
+            existing = settingKeys.get(id);
+            if (existing == null) {
+                try {
+                    existing = database.createSettingKey(id);
+                    settingKeys.put(existing.getName(), existing);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Could not create setting key", e);
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return existing;
+    }
+
+    @Override
+    public boolean hasSettingKey(String id) {
+        return settingKeys.containsKey(id);
+    }
+
+    @Override
+    public Collection<? extends SettingKey> getAllSettingKeys() {
+        return Collections.unmodifiableCollection(settingKeys.values());
     }
 }
