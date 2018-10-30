@@ -39,4 +39,11 @@ public interface PlayerStatistics {
 
     public void getAchivementLevel(AchivementKey key, Callback<Integer> achivementCallback);
 
+    public boolean areSettingsLoaded();
+
+    public Integer getSettingValueIfLoaded(SettingKey setting);
+
+    public int getSettingValueOrDefault(SettingKey setting);
+
+    public void setSettingValue(SettingKey key, int value);
 }
