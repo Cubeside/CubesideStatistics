@@ -49,6 +49,49 @@ public interface CubesideStatisticsAPI {
      */
     public boolean hasStatisticKey(String id);
 
+    /**
+     * Gets the global statistics
+     *
+     * @return the statistics, this will never be null
+     */
+    public GlobalStatistics getGlobalStatistics();
+
+    /**
+     * Gets an existing global statistics key or creates a new one.
+     *
+     * @param id
+     *            the id of the global statistics key
+     * @return the statistics key
+     */
+    public GlobalStatisticKey getGlobalStatisticKey(String id);
+
+    /**
+     * Gets an existing global statistics key or creates a new one if it does not exist and create is true
+     *
+     * @param id
+     *            the id of the global statistics key
+     * @param create
+     *            true if the key should be created if it does not exist
+     * @return the global statistics key, this will never be null if create is true
+     */
+    public GlobalStatisticKey getGlobalStatisticKey(String id, boolean create);
+
+    /**
+     * Gets all existing global statistic keys
+     *
+     * @return a collection containing all global statistic keys
+     */
+    public Collection<? extends GlobalStatisticKey> getAllGlobalStatisticKeys();
+
+    /**
+     * Checks if a global statistics key exists
+     *
+     * @param id
+     *            the id of the global statistics key
+     * @return true if the key exists
+     */
+    public boolean hasGlobalStatisticKey(String id);
+
     public AchivementKey getAchivementKey(String id);
 
     public AchivementKey getAchivementKey(String id, boolean create);

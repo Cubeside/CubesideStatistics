@@ -1,5 +1,8 @@
 package de.iani.cubesidestats;
 
+import de.iani.cubesidestats.sql.MySQLConnection;
+import de.iani.cubesidestats.sql.SQLConnection;
+import de.iani.cubesidestats.sql.SQLRunnable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,10 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-import de.iani.cubesidestats.sql.MySQLConnection;
-import de.iani.cubesidestats.sql.SQLConnection;
-import de.iani.cubesidestats.sql.SQLRunnable;
-
 public class StatisticsDatabase {
     private SQLConnection connection;
     private final CubesideStatisticsImplementation impl;
@@ -24,6 +23,16 @@ public class StatisticsDatabase {
 
     private final String getPlayerId;
     private final String createPlayerId;
+
+    private final String getAllGlobalStatsKeys;
+    private final String createGlobalStatsKey;
+    private final String updateGlobalStatsKey;
+
+    private final String changeGlobalStatsValue;
+    private final String setGlobalStatsValue;
+    private final String maxGlobalStatsValue;
+    private final String minGlobalStatsValue;
+    private final String getGlobalStatsValue;
 
     private final String getAllStatsKeys;
     private final String createStatsKey;
@@ -69,6 +78,16 @@ public class StatisticsDatabase {
         increaseConfigValue = "INSERT INTO " + prefix + "_config (setting, `value`) VALUE (?, 1) ON DUPLICATE KEY UPDATE `value` = `value` + 1";
         getPlayerId = "SELECT id FROM " + prefix + "_players WHERE uuid = ?";
         createPlayerId = "INSERT INTO " + prefix + "_players (uuid) VALUE (?)";
+
+        getAllGlobalStatsKeys = "SELECT id, name, properties FROM " + prefix + "_globalstats";
+        createGlobalStatsKey = "INSERT IGNORE INTO " + prefix + "_globalstats (name, properties) VALUE (?, ?)";
+        updateGlobalStatsKey = "UPDATE " + prefix + "_globalstats SET properties = ? WHERE id = ?";
+
+        changeGlobalStatsValue = "INSERT INTO " + prefix + "_globalstatsvalues (statsid, month, score) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE score = score + ?";
+        setGlobalStatsValue = "INSERT INTO " + prefix + "_globalstatsvalues (statsid, month, score) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE score = ?";
+        maxGlobalStatsValue = "INSERT INTO " + prefix + "_globalstatsvalues (statsid, month, score) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
+        minGlobalStatsValue = "INSERT INTO " + prefix + "_globalstatsvalues (statsid, month, score) VALUE (?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
+        getGlobalStatsValue = "SELECT score FROM " + prefix + "_globalstatsvalues WHERE statsid = ? AND month = ?";
 
         getAllStatsKeys = "SELECT id, name, properties FROM " + prefix + "_stats";
         createStatsKey = "INSERT IGNORE INTO " + prefix + "_stats (name, properties) VALUE (?, ?)";
@@ -140,6 +159,22 @@ public class StatisticsDatabase {
                     " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`)" + //
                     " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
+                if (!sqlConnection.hasTable(prefix + "_globalstats")) {
+                    smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_globalstats` (" + //
+                    " `id` int(11) AUTO_INCREMENT," + //
+                    " `name` varchar(255) NOT NULL," + //
+                    " `properties` text NOT NULL," + //
+                    " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
+                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                }
+                if (!sqlConnection.hasTable(prefix + "_globalstatsvalues")) {
+                    smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_globalstatsvalues` (" + //
+                    " `statsid` int(11) NOT NULL," + //
+                    " `month` int(11) NOT NULL," + //
+                    " `score` int(11) NOT NULL," + //
+                    " PRIMARY KEY (`month`,`statsid`)" + //
+                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                }
                 if (!sqlConnection.hasTable(prefix + "_current_players")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_current_players` (" + //
                     " `server` char(36) NOT NULL," + //
@@ -192,11 +227,13 @@ public class StatisticsDatabase {
 
     public class ConfigDTO {
         private final int configSerial;
+        private final Collection<GlobalStatisticKeyImplementation> globalStatisticKeys;
         private final Collection<StatisticKeyImplementation> statisticKeys;
         private final Collection<AchivementKeyImplementation> achivementKeys;
         private final Collection<SettingKeyImplementation> settingKeys;
 
-        public ConfigDTO(int configSerial, Collection<StatisticKeyImplementation> statisticKeys, Collection<AchivementKeyImplementation> achivementKeys, Collection<SettingKeyImplementation> settingKeys) {
+        public ConfigDTO(int configSerial, Collection<GlobalStatisticKeyImplementation> globalStatisticKeys, Collection<StatisticKeyImplementation> statisticKeys, Collection<AchivementKeyImplementation> achivementKeys, Collection<SettingKeyImplementation> settingKeys) {
+            this.globalStatisticKeys = globalStatisticKeys;
             this.configSerial = configSerial;
             this.statisticKeys = statisticKeys;
             this.achivementKeys = achivementKeys;
@@ -205,6 +242,10 @@ public class StatisticsDatabase {
 
         public int getConfigSerial() {
             return configSerial;
+        }
+
+        public Collection<GlobalStatisticKeyImplementation> getGlobalStatisticKeys() {
+            return globalStatisticKeys;
         }
 
         public Collection<StatisticKeyImplementation> getStatisticKeys() {
@@ -262,6 +303,48 @@ public class StatisticsDatabase {
         });
     }
 
+    public GlobalStatisticKeyImplementation createGlobalStatisticKey(String name) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<GlobalStatisticKeyImplementation>() {
+            @Override
+            public GlobalStatisticKeyImplementation execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(createGlobalStatsKey, Statement.RETURN_GENERATED_KEYS);
+                smt.setString(1, name);
+                smt.setString(2, "");
+                smt.executeUpdate();
+
+                Integer id = null;
+                ResultSet results = smt.getGeneratedKeys();
+                if (results.next()) {
+                    id = results.getInt(1);
+                }
+                results.close();
+
+                if (id == null) {
+                    return null;
+                }
+                internalIncreaseConfigSerial(connection, sqlConnection);
+                return new GlobalStatisticKeyImplementation(id, name, null, impl);
+            }
+        });
+    }
+
+    public void updateGlobalStatisticKey(GlobalStatisticKeyImplementation impl) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(updateGlobalStatsKey);
+                smt.setString(1, impl.getSerializedProperties());
+                smt.setInt(2, impl.getId());
+                // int rows =
+                smt.executeUpdate();
+                // StatisticsDatabase.this.impl.getPlugin().getLogger().info(impl.getId() + " - " + impl.getSerializedProperties());
+                // StatisticsDatabase.this.impl.getPlugin().getLogger().info("Rows: " + rows);
+                internalIncreaseConfigSerial(connection, sqlConnection);
+                return null;
+            }
+        });
+    }
+
     protected void internalIncreaseConfigSerial(Connection connection, SQLConnection sqlConnection) throws SQLException {
         PreparedStatement smt = sqlConnection.getOrCreateStatement(increaseConfigValue);
         smt.setString(1, configSettingSerial);
@@ -283,6 +366,14 @@ public class StatisticsDatabase {
                 if (configSerial <= oldSerial) {
                     return null;
                 }
+
+                ArrayList<GlobalStatisticKeyImplementation> globalStatskeys = new ArrayList<>();
+                smt = sqlConnection.getOrCreateStatement(getAllGlobalStatsKeys);
+                results = smt.executeQuery();
+                while (results.next()) {
+                    globalStatskeys.add(new GlobalStatisticKeyImplementation(results.getInt("id"), results.getString("name"), results.getString("properties"), impl));
+                }
+                results.close();
 
                 ArrayList<StatisticKeyImplementation> statskeys = new ArrayList<>();
                 smt = sqlConnection.getOrCreateStatement(getAllStatsKeys);
@@ -308,7 +399,7 @@ public class StatisticsDatabase {
                 }
                 results.close();
 
-                return new ConfigDTO(configSerial, statskeys, achivkeys, settingkeys);
+                return new ConfigDTO(configSerial, globalStatskeys, statskeys, achivkeys, settingkeys);
             }
         });
     }
@@ -339,6 +430,141 @@ public class StatisticsDatabase {
                     throw new SQLException("Could not generate player id");
                 }
                 return rv;
+            }
+        });
+    }
+
+    public void increaseGlobalStatsValue(GlobalStatisticKeyImplementation key, int month, int day, int amount) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(changeGlobalStatsValue);
+                smt.setInt(1, keyId);
+                smt.setInt(2, -1);
+                smt.setInt(3, amount);
+                smt.setInt(4, amount);
+                smt.executeUpdate();
+                if (month >= 0 && key.isMonthlyStats()) {
+                    smt.setInt(2, month);
+                    smt.executeUpdate();
+                }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(2, day);
+                    smt.executeUpdate();
+                }
+                return null;
+            }
+        });
+    }
+
+    public void setGlobalStatsValue(GlobalStatisticKeyImplementation key, int month, int day, int value) throws SQLException {
+        this.connection.runCommands(new SQLRunnable<Void>() {
+            @Override
+            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(setGlobalStatsValue);
+                smt.setInt(1, keyId);
+                smt.setInt(2, -1);
+                smt.setInt(3, value);
+                smt.setInt(4, value);
+                smt.executeUpdate();
+                if (month >= 0 && key.isMonthlyStats()) {
+                    smt.setInt(2, month);
+                    smt.executeUpdate();
+                }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(2, day);
+                    smt.executeUpdate();
+                }
+                return null;
+            }
+        });
+    }
+
+    public boolean maxGlobalStatsValue(GlobalStatisticKeyImplementation key, int month, int day, int value) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Boolean>() {
+            @Override
+            public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getGlobalStatsValue);
+                smt.setInt(1, keyId);
+                smt.setInt(2, -1);
+                ResultSet results = smt.executeQuery();
+                Integer old = null;
+                if (results.next()) {
+                    old = results.getInt("score");
+                }
+                results.close();
+
+                smt = sqlConnection.getOrCreateStatement(maxGlobalStatsValue);
+                smt.setInt(1, keyId);
+                smt.setInt(2, -1);
+                smt.setInt(3, value);
+                smt.setInt(4, value);
+                smt.executeUpdate();
+                if (month >= 0 && key.isMonthlyStats()) {
+                    smt.setInt(2, month);
+                    smt.executeUpdate();
+                }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(2, day);
+                    smt.executeUpdate();
+                }
+                return old == null || value > old.intValue();
+            }
+        });
+    }
+
+    public boolean minGlobalStatsValue(GlobalStatisticKeyImplementation key, int month, int day, int value) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Boolean>() {
+            @Override
+            public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getGlobalStatsValue);
+                smt.setInt(1, keyId);
+                smt.setInt(2, -1);
+                ResultSet results = smt.executeQuery();
+                Integer old = null;
+                if (results.next()) {
+                    old = results.getInt("score");
+                }
+                results.close();
+
+                smt = sqlConnection.getOrCreateStatement(minGlobalStatsValue);
+                smt.setInt(1, keyId);
+                smt.setInt(2, -1);
+                smt.setInt(3, value);
+                smt.setInt(4, value);
+                smt.executeUpdate();
+                if (month >= 0 && key.isMonthlyStats()) {
+                    smt.setInt(2, month);
+                    smt.executeUpdate();
+                }
+                if (day >= 0 && key.isDailyStats()) {
+                    smt.setInt(2, day);
+                    smt.executeUpdate();
+                }
+                return old == null || value < old.intValue();
+            }
+        });
+    }
+
+    public Integer getGlobalStatsValue(GlobalStatisticKeyImplementation key, int month) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getGlobalStatsValue);
+                smt.setInt(1, keyId);
+                smt.setInt(2, month);
+                ResultSet results = smt.executeQuery();
+                Integer rv = null;
+                if (results.next()) {
+                    rv = results.getInt("score");
+                }
+                results.close();
+                return rv == null ? 0 : rv;
             }
         });
     }

@@ -1,57 +1,23 @@
 package de.iani.cubesidestats;
 
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.logging.Level;
-
-import org.bukkit.configuration.InvalidConfigurationException;
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
 import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.PlayerWithScore;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
 
-public class StatisticKeyImplementation implements StatisticKey {
-
-    private final int id;
-    private final String name;
-    private final CubesideStatisticsImplementation stats;
-
-    private String displayName;
-    private boolean isMonthly;
-    private boolean isDaily;
+public class StatisticKeyImplementation extends StatisticKeyImplementationBase implements StatisticKey {
 
     public StatisticKeyImplementation(int id, String name, String properties, CubesideStatisticsImplementation impl) {
-        this.id = id;
-        this.name = name;
-        this.stats = impl;
-
-        YamlConfiguration conf = new YamlConfiguration();
-        if (properties != null) {
-            try {
-                conf.loadFromString(properties);
-            } catch (InvalidConfigurationException e) {
-                impl.getPlugin().getLogger().log(Level.SEVERE, "Could not load properties for statistics key " + name + " (" + id + ")", e);
-            }
-        }
-        displayName = conf.getString("displayName");
-        isMonthly = conf.getBoolean("isMonthly");
-        isDaily = conf.getBoolean("isDaily");
+        super(id, name, properties, impl);
     }
 
-    public String getSerializedProperties() {
-        YamlConfiguration conf = new YamlConfiguration();
-        conf.set("displayName", displayName);
-        conf.set("isMonthly", isMonthly);
-        conf.set("isDaily", isDaily);
-        return conf.saveToString();
-    }
-
-    private void save() {
+    @Override
+    protected void save() {
         StatisticKeyImplementation clone = new StatisticKeyImplementation(id, name, null, stats);
         clone.copyPropertiesFrom(this);
 
@@ -65,60 +31,6 @@ public class StatisticKeyImplementation implements StatisticKey {
                 }
             }
         });
-    }
-
-    public int getId() {
-        return id;
-    }
-
-    @Override
-    public String getName() {
-        return name;
-    }
-
-    @Override
-    public void setDisplayName(String name) {
-        if (!Objects.equals(this.displayName, name)) {
-            this.displayName = name;
-            save();
-        }
-    }
-
-    @Override
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    @Override
-    public void setIsMonthlyStats(boolean monthly) {
-        if (this.isMonthly != monthly) {
-            this.isMonthly = monthly;
-            save();
-        }
-    }
-
-    @Override
-    public boolean isMonthlyStats() {
-        return isMonthly;
-    }
-
-    @Override
-    public void setIsDailyStats(boolean daily) {
-        if (this.isDaily != daily) {
-            this.isDaily = daily;
-            save();
-        }
-    }
-
-    @Override
-    public boolean isDailyStats() {
-        return isDaily;
-    }
-
-    public void copyPropertiesFrom(StatisticKeyImplementation e) {
-        displayName = e.displayName;
-        isMonthly = e.isMonthly;
-        isDaily = e.isDaily;
     }
 
     @Override

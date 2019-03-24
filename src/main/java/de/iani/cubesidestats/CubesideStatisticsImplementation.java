@@ -1,5 +1,14 @@
 package de.iani.cubesidestats;
 
+import de.iani.cubesidestats.StatisticsDatabase.ConfigDTO;
+import de.iani.cubesidestats.api.AchivementKey;
+import de.iani.cubesidestats.api.CubesideStatisticsAPI;
+import de.iani.cubesidestats.api.GamePlayerCount;
+import de.iani.cubesidestats.api.GlobalStatisticKey;
+import de.iani.cubesidestats.api.GlobalStatistics;
+import de.iani.cubesidestats.api.PlayerStatistics;
+import de.iani.cubesidestats.api.SettingKey;
+import de.iani.cubesidestats.api.StatisticKey;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -14,18 +23,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.logging.Level;
-
 import org.bukkit.entity.Player;
 
-import de.iani.cubesidestats.StatisticsDatabase.ConfigDTO;
-import de.iani.cubesidestats.api.AchivementKey;
-import de.iani.cubesidestats.api.CubesideStatisticsAPI;
-import de.iani.cubesidestats.api.GamePlayerCount;
-import de.iani.cubesidestats.api.PlayerStatistics;
-import de.iani.cubesidestats.api.SettingKey;
-import de.iani.cubesidestats.api.StatisticKey;
-
 public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
+    private GlobalStatisticsImplementation globalStatistics;
+    private HashMap<String, GlobalStatisticKeyImplementation> globalStatisticKeys;
     private HashMap<String, StatisticKeyImplementation> statisticKeys;
     private HashMap<String, AchivementKeyImplementation> achivementKeys;
     private HashMap<String, SettingKeyImplementation> settingKeys;
@@ -47,6 +49,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         serverid = loadOrCreateServerId();
         database = new StatisticsDatabase(this, new SQLConfig(plugin.getConfig().getConfigurationSection("database")));
 
+        globalStatisticKeys = new HashMap<>();
         statisticKeys = new HashMap<>();
         achivementKeys = new HashMap<>();
         settingKeys = new HashMap<>();
@@ -68,6 +71,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         workerThread.start();
 
         gamePlayerCount = new GamePlayerCountImplementation(this);
+        globalStatistics = new GlobalStatisticsImplementation(this);
     }
 
     private UUID loadOrCreateServerId() {
@@ -140,6 +144,15 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                         return; // we already have the current config
                     }
                     configSerial = config.getConfigSerial();
+                    Collection<GlobalStatisticKeyImplementation> newGlobalStatisticKeys = config.getGlobalStatisticKeys();
+                    for (GlobalStatisticKeyImplementation e : newGlobalStatisticKeys) {
+                        GlobalStatisticKeyImplementation old = globalStatisticKeys.get(e.getName());
+                        if (old != null) {
+                            old.copyPropertiesFrom(e);
+                        } else {
+                            globalStatisticKeys.put(e.getName(), e);
+                        }
+                    }
                     Collection<StatisticKeyImplementation> newStatisticKeys = config.getStatisticKeys();
                     for (StatisticKeyImplementation e : newStatisticKeys) {
                         StatisticKeyImplementation old = statisticKeys.get(e.getName());
@@ -181,6 +194,11 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     }
 
     @Override
+    public GlobalStatistics getGlobalStatistics() {
+        return globalStatistics;
+    }
+
+    @Override
     public PlayerStatistics getStatistics(UUID owner) {
         PlayerStatisticsImplementation stats = onlinePlayers.get(owner);
         if (stats != null) {
@@ -206,6 +224,40 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                 }
             }
         }
+    }
+
+    @Override
+    public GlobalStatisticKey getGlobalStatisticKey(String id) {
+        return getGlobalStatisticKey(id, true);
+    }
+
+    @Override
+    public GlobalStatisticKey getGlobalStatisticKey(String id, boolean create) {
+        GlobalStatisticKeyImplementation existing = globalStatisticKeys.get(id);
+        if (existing == null && create) {
+            reloadConfigNow();
+            existing = globalStatisticKeys.get(id);
+            if (existing == null) {
+                try {
+                    existing = database.createGlobalStatisticKey(id);
+                    globalStatisticKeys.put(existing.getName(), existing);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Could not create global statistics key", e);
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return existing;
+    }
+
+    @Override
+    public boolean hasGlobalStatisticKey(String id) {
+        return globalStatisticKeys.containsKey(id);
+    }
+
+    @Override
+    public Collection<? extends GlobalStatisticKey> getAllGlobalStatisticKeys() {
+        return Collections.unmodifiableCollection(globalStatisticKeys.values());
     }
 
     @Override
