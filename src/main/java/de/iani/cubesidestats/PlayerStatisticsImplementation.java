@@ -1,16 +1,5 @@
 package de.iani.cubesidestats;
 
-import java.sql.SQLException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map.Entry;
-import java.util.UUID;
-import java.util.logging.Level;
-
-import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-
 import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
 import de.iani.cubesidestats.api.AchivementKey;
 import de.iani.cubesidestats.api.Callback;
@@ -19,6 +8,15 @@ import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
 import de.iani.cubesidestats.api.event.PlayerSettingsLoadedEvent;
+import java.sql.SQLException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map.Entry;
+import java.util.UUID;
+import java.util.logging.Level;
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
 
 public class PlayerStatisticsImplementation implements PlayerStatistics {
     private CubesideStatisticsImplementation stats;
@@ -440,19 +438,23 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         });
     }
 
+    @Override
     public boolean areSettingsLoaded() {
         return settingsLoaded;
     }
 
+    @Override
     public Integer getSettingValueIfLoaded(SettingKey setting) {
         return settings.get(setting);
     }
 
+    @Override
     public int getSettingValueOrDefault(SettingKey setting) {
         Integer value = getSettingValueIfLoaded(setting);
         return value != null ? value.intValue() : setting.getDefault();
     }
 
+    @Override
     public void setSettingValue(SettingKey key, int value) {
         if (!(key instanceof SettingKeyImplementation)) {
             throw new IllegalArgumentException("key");
