@@ -433,23 +433,30 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
-                if (databaseId < 0) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
-                    return;
-                }
-                try {
-                    Integer level = database.getAchivementLevel(databaseId, (AchivementKeyImplementation) key);
+                Integer level = internalGetAchivementLevel(database, key);
+                if (level != null) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {
                             achivementCallback.call(level);
                         }
                     });
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get achivement " + key.getName() + " for " + playerId, e);
                 }
             }
         });
+    }
+
+    protected Integer internalGetAchivementLevel(StatisticsDatabase database, AchivementKey key) {
+        if (databaseId < 0) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+            return null;
+        }
+        try {
+            return database.getAchivementLevel(databaseId, (AchivementKeyImplementation) key);
+        } catch (SQLException e) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get achivement " + key.getName() + " for " + playerId, e);
+        }
+        return null;
     }
 
     @Override

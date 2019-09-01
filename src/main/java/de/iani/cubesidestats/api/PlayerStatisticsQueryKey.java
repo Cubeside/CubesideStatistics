@@ -13,6 +13,10 @@ public final class PlayerStatisticsQueryKey implements StatisticsQueryKey {
     private final StatisticKey key;
     private final TimeFrame timeFrame;
 
+    public PlayerStatisticsQueryKey(PlayerStatistics player, StatisticKey key) {
+        this(player, key, QueryType.SCORE, TimeFrame.ALL_TIME);
+    }
+
     public PlayerStatisticsQueryKey(PlayerStatistics player, StatisticKey key, QueryType type) {
         this(player, key, type, TimeFrame.ALL_TIME);
     }

@@ -9,6 +9,7 @@ import de.iani.cubesidestats.api.GamePlayerCount;
 import de.iani.cubesidestats.api.GlobalStatisticKey;
 import de.iani.cubesidestats.api.GlobalStatistics;
 import de.iani.cubesidestats.api.GlobalStatisticsQueryKey;
+import de.iani.cubesidestats.api.PlayerAchivementQueryKey;
 import de.iani.cubesidestats.api.PlayerStatistics;
 import de.iani.cubesidestats.api.PlayerStatisticsQueryKey;
 import de.iani.cubesidestats.api.PlayerStatisticsQueryKey.QueryType;
@@ -508,6 +509,15 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                                 if (score != null) {
                                     result.put(queryKey, score);
                                 }
+                            }
+                        }
+                    } else if (queryKey instanceof PlayerAchivementQueryKey) {
+                        PlayerAchivementQueryKey playerQueryKey = (PlayerAchivementQueryKey) queryKey;
+                        if (playerQueryKey.getPlayer() instanceof PlayerStatisticsImplementation) {
+                            PlayerStatisticsImplementation player = (PlayerStatisticsImplementation) playerQueryKey.getPlayer();
+                            Integer level = player.internalGetAchivementLevel(database, playerQueryKey.getKey());
+                            if (level != null) {
+                                result.put(queryKey, level);
                             }
                         }
                     } else if (queryKey instanceof GlobalStatisticsQueryKey) {
