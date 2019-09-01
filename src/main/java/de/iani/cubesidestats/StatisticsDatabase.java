@@ -43,7 +43,7 @@ public class StatisticsDatabase {
     private final String maxScore;
     private final String minScore;
     private final String getScore;
-    // private final String getPosition;
+    private final String getPosition;
     private final String getTopScores;
 
     private final String getAllAchivementKeys;
@@ -98,7 +98,7 @@ public class StatisticsDatabase {
         maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
         minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
-        // getPosition = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?)";
+        getPosition = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ((SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t))";
 
         getTopScores = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?";
 
@@ -707,6 +707,28 @@ public class StatisticsDatabase {
                 }
                 results.close();
                 return rv == null ? 0 : rv;
+            }
+        });
+    }
+
+    public Integer getPosition(int databaseId, StatisticKeyImplementation key, int month) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getPosition);
+                smt.setInt(1, keyId);
+                smt.setInt(2, month);
+                smt.setInt(3, databaseId);
+                smt.setInt(4, keyId);
+                smt.setInt(5, month);
+                ResultSet results = smt.executeQuery();
+                Integer rv = null;
+                if (results.next()) {
+                    rv = results.getInt("count");
+                }
+                results.close();
+                return (rv == null ? 0 : rv) + 1;
             }
         });
     }

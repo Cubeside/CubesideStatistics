@@ -1,6 +1,7 @@
 package de.iani.cubesidestats.api;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 public interface CubesideStatisticsAPI {
@@ -130,4 +131,14 @@ public interface CubesideStatisticsAPI {
      * @return the player count manger
      */
     public GamePlayerCount getGamePlayerCount();
+
+    /**
+     * Querys multiple statistics values. They can be for different players and can also include global statistics.
+     *
+     * @param querys
+     *            The querys to be executed
+     * @param callback
+     *            A callback that is called when all data is collected. This callback is called in the main thread.
+     */
+    public void queryStats(Collection<StatisticsQueryKey> querys, Callback<Map<StatisticsQueryKey, Integer>> callback);
 }

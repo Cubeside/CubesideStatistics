@@ -150,18 +150,25 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
-                try {
-                    Integer score = database.getGlobalStatsValue((GlobalStatisticKeyImplementation) key, month);
+                Integer score = internalGetScoreInMonth(database, key, month);
+                if (score != null) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {
                             scoreCallback.call(score);
                         }
                     });
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get global value", e);
                 }
             }
         });
+    }
+
+    protected Integer internalGetScoreInMonth(StatisticsDatabase database, GlobalStatisticKey key, int month) {
+        try {
+            return database.getGlobalStatsValue((GlobalStatisticKeyImplementation) key, month);
+        } catch (SQLException e) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get global value", e);
+        }
+        return null;
     }
 }

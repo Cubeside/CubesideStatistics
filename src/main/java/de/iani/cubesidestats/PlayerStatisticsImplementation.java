@@ -249,23 +249,30 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
-                if (databaseId < 0) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
-                    return;
-                }
-                try {
-                    Integer score = database.getScore(databaseId, (StatisticKeyImplementation) key, month);
+                Integer score = internalGetScoreInMonth(database, key, month);
+                if (score != null) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {
                             scoreCallback.call(score);
                         }
                     });
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get score for " + playerId, e);
                 }
             }
         });
+    }
+
+    protected Integer internalGetScoreInMonth(StatisticsDatabase database, StatisticKey key, int month) {
+        if (databaseId < 0) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+            return null;
+        }
+        try {
+            return database.getScore(databaseId, (StatisticKeyImplementation) key, month);
+        } catch (SQLException e) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get score for " + playerId, e);
+        }
+        return null;
     }
 
     private void getPositionInMonth(StatisticKey key, int month, Callback<Integer> scoreCallback) {
@@ -278,23 +285,30 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
-                if (databaseId < 0) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
-                    return;
-                }
-                try {
-                    Integer score = database.getScore(databaseId, (StatisticKeyImplementation) key, month);
+                Integer score = internalGetPositionInMonth(database, key, month);
+                if (score != null) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {
                             scoreCallback.call(score);
                         }
                     });
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get score for " + playerId, e);
                 }
             }
         });
+    }
+
+    protected Integer internalGetPositionInMonth(StatisticsDatabase database, StatisticKey key, int month) {
+        if (databaseId < 0) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+            return null;
+        }
+        try {
+            return database.getPosition(databaseId, (StatisticKeyImplementation) key, month);
+        } catch (SQLException e) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get position for score for " + playerId, e);
+        }
+        return null;
     }
 
     @Override
@@ -480,5 +494,19 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 }
             }
         });
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj.getClass() != PlayerStatisticsImplementation.class) {
+            return false;
+        }
+        PlayerStatisticsImplementation other = (PlayerStatisticsImplementation) obj;
+        return playerId.equals(other.playerId);
+    }
+
+    @Override
+    public int hashCode() {
+        return playerId.hashCode();
     }
 }

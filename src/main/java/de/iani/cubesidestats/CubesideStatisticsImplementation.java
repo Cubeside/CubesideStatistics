@@ -1,14 +1,21 @@
 package de.iani.cubesidestats;
 
+import com.google.common.base.Preconditions;
 import de.iani.cubesidestats.StatisticsDatabase.ConfigDTO;
 import de.iani.cubesidestats.api.AchivementKey;
+import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.CubesideStatisticsAPI;
 import de.iani.cubesidestats.api.GamePlayerCount;
 import de.iani.cubesidestats.api.GlobalStatisticKey;
 import de.iani.cubesidestats.api.GlobalStatistics;
+import de.iani.cubesidestats.api.GlobalStatisticsQueryKey;
 import de.iani.cubesidestats.api.PlayerStatistics;
+import de.iani.cubesidestats.api.PlayerStatisticsQueryKey;
+import de.iani.cubesidestats.api.PlayerStatisticsQueryKey.QueryType;
 import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
+import de.iani.cubesidestats.api.StatisticsQueryKey;
+import de.iani.cubesidestats.api.TimeFrame;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -16,11 +23,13 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 import org.bukkit.entity.Player;
@@ -209,7 +218,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
             return timestampedStats.get();
         }
         stats = new PlayerStatisticsImplementation(this, owner, null);
-        offlinePlayers.put(owner, new TimestampedValue<PlayerStatisticsImplementation>(stats));
+        offlinePlayers.put(owner, new TimestampedValue<>(stats));
         return stats;
     }
 
@@ -302,7 +311,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     public void playerDisconnected(Player player) {
         PlayerStatisticsImplementation old = onlinePlayers.remove(player.getUniqueId());
         if (old != null) {
-            offlinePlayers.put(player.getUniqueId(), new TimestampedValue<PlayerStatisticsImplementation>(old));
+            offlinePlayers.put(player.getUniqueId(), new TimestampedValue<>(old));
         }
     }
 
@@ -315,7 +324,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         private ArrayDeque<WorkEntry> work;
 
         public WorkerThread() {
-            work = new ArrayDeque<WorkEntry>();
+            work = new ArrayDeque<>();
             this.database = CubesideStatisticsImplementation.this.database;
         }
 
@@ -465,5 +474,58 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     @Override
     public Collection<? extends SettingKey> getAllSettingKeys() {
         return Collections.unmodifiableCollection(settingKeys.values());
+    }
+
+    @Override
+    public void queryStats(Collection<StatisticsQueryKey> querys, Callback<Map<StatisticsQueryKey, Integer>> callback) {
+        Preconditions.checkNotNull(querys, "querys");
+        Preconditions.checkNotNull(callback, "callback");
+        ArrayList<StatisticsQueryKey> internalQuerys = new ArrayList<>(querys);
+        int currentMonthKey = getCurrentMonthKey();
+        int currentDayKey = getCurrentDayKey();
+        getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                HashMap<StatisticsQueryKey, Integer> result = new HashMap<>();
+                for (StatisticsQueryKey queryKey : internalQuerys) {
+                    if (queryKey instanceof PlayerStatisticsQueryKey) {
+                        PlayerStatisticsQueryKey playerQueryKey = (PlayerStatisticsQueryKey) queryKey;
+                        if (playerQueryKey.getPlayer() instanceof PlayerStatisticsImplementation) {
+                            int timeKey = -1;
+                            if (playerQueryKey.getTimeFrame() == TimeFrame.MONTH) {
+                                timeKey = currentMonthKey;
+                            } else if (playerQueryKey.getTimeFrame() == TimeFrame.DAY) {
+                                timeKey = currentDayKey;
+                            }
+                            PlayerStatisticsImplementation player = (PlayerStatisticsImplementation) playerQueryKey.getPlayer();
+                            if (playerQueryKey.getType() == QueryType.POSITION) {
+                                Integer pos = player.internalGetPositionInMonth(database, playerQueryKey.getKey(), timeKey);
+                                if (pos != null) {
+                                    result.put(queryKey, pos);
+                                }
+                            } else if (playerQueryKey.getType() == QueryType.SCORE) {
+                                Integer score = player.internalGetScoreInMonth(database, playerQueryKey.getKey(), timeKey);
+                                if (score != null) {
+                                    result.put(queryKey, score);
+                                }
+                            }
+                        }
+                    } else if (queryKey instanceof GlobalStatisticsQueryKey) {
+                        GlobalStatisticsQueryKey globalQueryKey = (GlobalStatisticsQueryKey) queryKey;
+                        int timeKey = -1;
+                        if (globalQueryKey.getTimeFrame() == TimeFrame.MONTH) {
+                            timeKey = currentMonthKey;
+                        } else if (globalQueryKey.getTimeFrame() == TimeFrame.DAY) {
+                            timeKey = currentDayKey;
+                        }
+                        Integer score = globalStatistics.internalGetScoreInMonth(database, globalQueryKey.getKey(), timeKey);
+                        if (score != null) {
+                            result.put(queryKey, score);
+                        }
+                    }
+                }
+                callback.call(result);
+            }
+        });
     }
 }
