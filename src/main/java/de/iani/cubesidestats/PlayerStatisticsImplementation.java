@@ -250,14 +250,12 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
             @Override
             public void process(StatisticsDatabase database) {
                 Integer score = internalGetScoreInMonth(database, key, month);
-                if (score != null) {
-                    stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                        @Override
-                        public void run() {
-                            scoreCallback.call(score);
-                        }
-                    });
-                }
+                stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                    @Override
+                    public void run() {
+                        scoreCallback.call(score);
+                    }
+                });
             }
         });
     }
@@ -285,7 +283,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
-                Integer score = internalGetPositionInMonth(database, key, month);
+                Integer score = internalGetPositionMaxInMonth(database, key, month);
                 if (score != null) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
@@ -298,13 +296,26 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         });
     }
 
-    protected Integer internalGetPositionInMonth(StatisticsDatabase database, StatisticKey key, int month) {
+    protected Integer internalGetPositionMaxInMonth(StatisticsDatabase database, StatisticKey key, int month) {
         if (databaseId < 0) {
             stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
             return null;
         }
         try {
-            return database.getPosition(databaseId, (StatisticKeyImplementation) key, month);
+            return database.getPositionMax(databaseId, (StatisticKeyImplementation) key, month);
+        } catch (SQLException e) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get position for score for " + playerId, e);
+        }
+        return null;
+    }
+
+    protected Integer internalGetPositionMinInMonth(StatisticsDatabase database, StatisticKey key, int month) {
+        if (databaseId < 0) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+            return null;
+        }
+        try {
+            return database.getPositionMin(databaseId, (StatisticKeyImplementation) key, month);
         } catch (SQLException e) {
             stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get position for score for " + playerId, e);
         }

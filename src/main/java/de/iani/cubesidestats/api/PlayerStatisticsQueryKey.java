@@ -5,7 +5,8 @@ import com.google.common.base.Preconditions;
 public final class PlayerStatisticsQueryKey implements StatisticsQueryKey {
     public enum QueryType {
         SCORE,
-        POSITION
+        POSITION_MAX,
+        POSITION_MIN
     }
 
     private final PlayerStatistics player;

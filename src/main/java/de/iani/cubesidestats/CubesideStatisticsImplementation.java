@@ -499,16 +499,19 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                                 timeKey = currentDayKey;
                             }
                             PlayerStatisticsImplementation player = (PlayerStatisticsImplementation) playerQueryKey.getPlayer();
-                            if (playerQueryKey.getType() == QueryType.POSITION) {
-                                Integer pos = player.internalGetPositionInMonth(database, playerQueryKey.getKey(), timeKey);
+                            if (playerQueryKey.getType() == QueryType.POSITION_MAX) {
+                                Integer pos = player.internalGetPositionMaxInMonth(database, playerQueryKey.getKey(), timeKey);
+                                if (pos != null) {
+                                    result.put(queryKey, pos);
+                                }
+                            } else if (playerQueryKey.getType() == QueryType.POSITION_MIN) {
+                                Integer pos = player.internalGetPositionMinInMonth(database, playerQueryKey.getKey(), timeKey);
                                 if (pos != null) {
                                     result.put(queryKey, pos);
                                 }
                             } else if (playerQueryKey.getType() == QueryType.SCORE) {
                                 Integer score = player.internalGetScoreInMonth(database, playerQueryKey.getKey(), timeKey);
-                                if (score != null) {
-                                    result.put(queryKey, score);
-                                }
+                                result.put(queryKey, score);
                             }
                         }
                     } else if (queryKey instanceof PlayerAchivementQueryKey) {
