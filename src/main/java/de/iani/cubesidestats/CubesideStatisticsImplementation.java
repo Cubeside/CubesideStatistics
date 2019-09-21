@@ -378,7 +378,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                 if (e != null && database != null) {
                     try {
                         e.process(database);
-                    } catch (Exception er) {
+                    } catch (Throwable er) {
                         plugin.getLogger().log(Level.SEVERE, "Error in Statistics", er);
                     }
                 }
