@@ -32,15 +32,16 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.bukkit.entity.Player;
 
 public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private GlobalStatisticsImplementation globalStatistics;
-    private HashMap<String, GlobalStatisticKeyImplementation> globalStatisticKeys;
-    private HashMap<String, StatisticKeyImplementation> statisticKeys;
-    private HashMap<String, AchivementKeyImplementation> achivementKeys;
-    private HashMap<String, SettingKeyImplementation> settingKeys;
+    private ConcurrentHashMap<String, GlobalStatisticKeyImplementation> globalStatisticKeys;
+    private ConcurrentHashMap<String, StatisticKeyImplementation> statisticKeys;
+    private ConcurrentHashMap<String, AchivementKeyImplementation> achivementKeys;
+    private ConcurrentHashMap<String, SettingKeyImplementation> settingKeys;
     private HashMap<UUID, PlayerStatisticsImplementation> onlinePlayers;
     private HashMap<UUID, TimestampedValue<PlayerStatisticsImplementation>> offlinePlayers;
     private StatisticsDatabase database;
@@ -53,6 +54,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private final UUID serverid;
     private final GamePlayerCountImplementation gamePlayerCount;
     private final Object playerListSync = new Object();
+    private final Object keySync = new Object();
 
     public CubesideStatisticsImplementation(CubesideStatistics plugin) throws SQLException {
         this.plugin = plugin;
@@ -60,10 +62,10 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         serverid = loadOrCreateServerId();
         database = new StatisticsDatabase(this, new SQLConfig(plugin.getConfig().getConfigurationSection("database")));
 
-        globalStatisticKeys = new HashMap<>();
-        statisticKeys = new HashMap<>();
-        achivementKeys = new HashMap<>();
-        settingKeys = new HashMap<>();
+        globalStatisticKeys = new ConcurrentHashMap<>();
+        statisticKeys = new ConcurrentHashMap<>();
+        achivementKeys = new ConcurrentHashMap<>();
+        settingKeys = new ConcurrentHashMap<>();
         onlinePlayers = new HashMap<>();
         offlinePlayers = new HashMap<>();
 
@@ -155,40 +157,42 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                         return; // we already have the current config
                     }
                     configSerial = config.getConfigSerial();
-                    Collection<GlobalStatisticKeyImplementation> newGlobalStatisticKeys = config.getGlobalStatisticKeys();
-                    for (GlobalStatisticKeyImplementation e : newGlobalStatisticKeys) {
-                        GlobalStatisticKeyImplementation old = globalStatisticKeys.get(e.getName());
-                        if (old != null) {
-                            old.copyPropertiesFrom(e);
-                        } else {
-                            globalStatisticKeys.put(e.getName(), e);
+                    synchronized (keySync) {
+                        Collection<GlobalStatisticKeyImplementation> newGlobalStatisticKeys = config.getGlobalStatisticKeys();
+                        for (GlobalStatisticKeyImplementation e : newGlobalStatisticKeys) {
+                            GlobalStatisticKeyImplementation old = globalStatisticKeys.get(e.getName());
+                            if (old != null) {
+                                old.copyPropertiesFrom(e);
+                            } else {
+                                globalStatisticKeys.put(e.getName(), e);
+                            }
                         }
-                    }
-                    Collection<StatisticKeyImplementation> newStatisticKeys = config.getStatisticKeys();
-                    for (StatisticKeyImplementation e : newStatisticKeys) {
-                        StatisticKeyImplementation old = statisticKeys.get(e.getName());
-                        if (old != null) {
-                            old.copyPropertiesFrom(e);
-                        } else {
-                            statisticKeys.put(e.getName(), e);
+                        Collection<StatisticKeyImplementation> newStatisticKeys = config.getStatisticKeys();
+                        for (StatisticKeyImplementation e : newStatisticKeys) {
+                            StatisticKeyImplementation old = statisticKeys.get(e.getName());
+                            if (old != null) {
+                                old.copyPropertiesFrom(e);
+                            } else {
+                                statisticKeys.put(e.getName(), e);
+                            }
                         }
-                    }
-                    Collection<AchivementKeyImplementation> newAchivementKeys = config.getAchivementKeys();
-                    for (AchivementKeyImplementation e : newAchivementKeys) {
-                        AchivementKeyImplementation old = achivementKeys.get(e.getName());
-                        if (old != null) {
-                            old.copyPropertiesFrom(e);
-                        } else {
-                            achivementKeys.put(e.getName(), e);
+                        Collection<AchivementKeyImplementation> newAchivementKeys = config.getAchivementKeys();
+                        for (AchivementKeyImplementation e : newAchivementKeys) {
+                            AchivementKeyImplementation old = achivementKeys.get(e.getName());
+                            if (old != null) {
+                                old.copyPropertiesFrom(e);
+                            } else {
+                                achivementKeys.put(e.getName(), e);
+                            }
                         }
-                    }
-                    Collection<SettingKeyImplementation> newSettingKeys = config.getSettingKeys();
-                    for (SettingKeyImplementation e : newSettingKeys) {
-                        SettingKeyImplementation old = settingKeys.get(e.getName());
-                        if (old != null) {
-                            old.copyPropertiesFrom(e);
-                        } else {
-                            settingKeys.put(e.getName(), e);
+                        Collection<SettingKeyImplementation> newSettingKeys = config.getSettingKeys();
+                        for (SettingKeyImplementation e : newSettingKeys) {
+                            SettingKeyImplementation old = settingKeys.get(e.getName());
+                            if (old != null) {
+                                old.copyPropertiesFrom(e);
+                            } else {
+                                settingKeys.put(e.getName(), e);
+                            }
                         }
                     }
                     plugin.getLogger().info("Reloaded config from the database");
@@ -251,14 +255,16 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         GlobalStatisticKeyImplementation existing = globalStatisticKeys.get(id);
         if (existing == null && create) {
             reloadConfigNow();
-            existing = globalStatisticKeys.get(id);
-            if (existing == null) {
-                try {
-                    existing = database.createGlobalStatisticKey(id);
-                    globalStatisticKeys.put(existing.getName(), existing);
-                } catch (SQLException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Could not create global statistics key", e);
-                    throw new RuntimeException(e);
+            synchronized (keySync) {
+                existing = globalStatisticKeys.get(id);
+                if (existing == null) {
+                    try {
+                        existing = database.createGlobalStatisticKey(id);
+                        globalStatisticKeys.put(existing.getName(), existing);
+                    } catch (SQLException e) {
+                        plugin.getLogger().log(Level.SEVERE, "Could not create global statistics key", e);
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }
@@ -285,14 +291,16 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         StatisticKeyImplementation existing = statisticKeys.get(id);
         if (existing == null && create) {
             reloadConfigNow();
-            existing = statisticKeys.get(id);
-            if (existing == null) {
-                try {
-                    existing = database.createStatisticKey(id);
-                    statisticKeys.put(existing.getName(), existing);
-                } catch (SQLException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Could not create statistics key", e);
-                    throw new RuntimeException(e);
+            synchronized (keySync) {
+                existing = statisticKeys.get(id);
+                if (existing == null) {
+                    try {
+                        existing = database.createStatisticKey(id);
+                        statisticKeys.put(existing.getName(), existing);
+                    } catch (SQLException e) {
+                        plugin.getLogger().log(Level.SEVERE, "Could not create statistics key", e);
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }
@@ -428,14 +436,16 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         AchivementKeyImplementation existing = achivementKeys.get(id);
         if (existing == null && create) {
             reloadConfigNow();
-            existing = achivementKeys.get(id);
-            if (existing == null) {
-                try {
-                    existing = database.createAchivementKey(id);
-                    achivementKeys.put(existing.getName(), existing);
-                } catch (SQLException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Could not create statistics key", e);
-                    throw new RuntimeException(e);
+            synchronized (keySync) {
+                existing = achivementKeys.get(id);
+                if (existing == null) {
+                    try {
+                        existing = database.createAchivementKey(id);
+                        achivementKeys.put(existing.getName(), existing);
+                    } catch (SQLException e) {
+                        plugin.getLogger().log(Level.SEVERE, "Could not create statistics key", e);
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }
@@ -462,14 +472,16 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         SettingKeyImplementation existing = settingKeys.get(id);
         if (existing == null && create) {
             reloadConfigNow();
-            existing = settingKeys.get(id);
-            if (existing == null) {
-                try {
-                    existing = database.createSettingKey(id);
-                    settingKeys.put(existing.getName(), existing);
-                } catch (SQLException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Could not create setting key", e);
-                    throw new RuntimeException(e);
+            synchronized (keySync) {
+                existing = settingKeys.get(id);
+                if (existing == null) {
+                    try {
+                        existing = database.createSettingKey(id);
+                        settingKeys.put(existing.getName(), existing);
+                    } catch (SQLException e) {
+                        plugin.getLogger().log(Level.SEVERE, "Could not create setting key", e);
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }
