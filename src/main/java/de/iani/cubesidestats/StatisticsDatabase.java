@@ -1,5 +1,6 @@
 package de.iani.cubesidestats;
 
+import de.iani.cubesidestats.api.Ordering;
 import de.iani.cubesidestats.sql.MySQLConnection;
 import de.iani.cubesidestats.sql.SQLConnection;
 import de.iani.cubesidestats.sql.SQLRunnable;
@@ -45,7 +46,8 @@ public class StatisticsDatabase {
     private final String getScore;
     private final String getPositionMax;
     private final String getPositionMin;
-    private final String getTopScores;
+    private final String getTopScoresDesc;
+    private final String getTopScoresAsc;
 
     private final String getAllAchivementKeys;
     private final String createAchivementKey;
@@ -102,7 +104,8 @@ public class StatisticsDatabase {
         getPositionMax = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
         getPositionMin = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
 
-        getTopScores = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?";
+        getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?, ?";
+        getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC LIMIT ?, ?";
 
         getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
         createAchivementKey = "INSERT IGNORE INTO " + prefix + "_achivementkeys (name, properties) VALUE (?, ?)";
@@ -757,15 +760,16 @@ public class StatisticsDatabase {
         });
     }
 
-    public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int count, int month) throws SQLException {
+    public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int start, int count, Ordering order, int month) throws SQLException {
         return this.connection.runCommands(new SQLRunnable<List<InternalPlayerWithScore>>() {
             @Override
             public List<InternalPlayerWithScore> execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(getTopScores);
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(order == Ordering.DESCENDING ? getTopScoresDesc : getTopScoresAsc);
                 smt.setInt(1, keyId);
                 smt.setInt(2, month);
-                smt.setInt(3, count);
+                smt.setInt(3, start);
+                smt.setInt(4, count);
                 ResultSet results = smt.executeQuery();
                 ArrayList<InternalPlayerWithScore> rv = new ArrayList<>();
                 int position = 0;

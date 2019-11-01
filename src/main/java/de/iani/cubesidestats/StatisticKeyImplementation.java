@@ -1,13 +1,18 @@
 package de.iani.cubesidestats;
 
+import com.google.common.base.Preconditions;
 import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
 import de.iani.cubesidestats.api.Callback;
+import de.iani.cubesidestats.api.Ordering;
 import de.iani.cubesidestats.api.PlayerWithScore;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 
 public class StatisticKeyImplementation extends StatisticKeyImplementationBase implements StatisticKey {
@@ -34,7 +39,17 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
     }
 
     @Override
-    public void getTop(int count, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback) {
+    public Future<List<PlayerWithScore>> getTop(int count, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback) {
+        return getTop(0, count, Ordering.DESCENDING, timeFrame, resultCallback);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame) {
+        return getTop(start, count, order, timeFrame, null);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback) {
         boolean monthly = timeFrame == TimeFrame.MONTH;
         if (monthly && !isMonthlyStats()) {
             throw new IllegalArgumentException("There are no monthly stats for this key");
@@ -43,12 +58,10 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
         if (daily && !isDailyStats()) {
             throw new IllegalArgumentException("There are no daily stats for this key");
         }
-        if (resultCallback == null) {
-            throw new NullPointerException("scoreCallback");
-        }
         if (count < 0) {
             throw new IllegalArgumentException("count must be >= 0");
         }
+        Preconditions.checkNotNull(order, "order");
         int timekey = -1;
         if (monthly) {
             timekey = stats.getCurrentMonthKey();
@@ -56,25 +69,32 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
             timekey = stats.getCurrentDayKey();
         }
         final int timekey2 = timekey;
+
+        CompletableFuture<List<PlayerWithScore>> future = new CompletableFuture<>();
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
                 try {
-                    List<InternalPlayerWithScore> score = database.getTop(StatisticKeyImplementation.this, count, timekey2);
-                    stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                        @Override
-                        public void run() {
-                            ArrayList<PlayerWithScore> rv = new ArrayList<>();
-                            for (InternalPlayerWithScore ip : score) {
-                                rv.add(new PlayerWithScore(stats.getStatistics(ip.getPlayer()), ip.getScore(), ip.getPosition()));
+                    List<PlayerWithScore> scoreList = new ArrayList<>();
+                    List<InternalPlayerWithScore> scoreInternal = database.getTop(StatisticKeyImplementation.this, start, count, order, timekey2);
+                    for (InternalPlayerWithScore ip : scoreInternal) {
+                        scoreList.add(new PlayerWithScore(stats.getStatistics(ip.getPlayer()), ip.getScore(), ip.getPosition()));
+                    }
+                    List<PlayerWithScore> unmodifiableScoreList = Collections.unmodifiableList(scoreList);
+                    future.complete(unmodifiableScoreList);
+                    if (resultCallback != null) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                resultCallback.call(unmodifiableScoreList);
                             }
-                            resultCallback.call(rv);
-                        }
-                    });
+                        });
+                    }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get top scores for " + name, e);
                 }
             }
         });
+        return future;
     }
 }

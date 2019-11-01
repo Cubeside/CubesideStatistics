@@ -1,6 +1,7 @@
 package de.iani.cubesidestats.api;
 
 import java.util.List;
+import java.util.concurrent.Future;
 
 public interface StatisticKey {
     public String getName();
@@ -17,5 +18,9 @@ public interface StatisticKey {
 
     public boolean isDailyStats();
 
-    public void getTop(int count, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback);
+    public Future<List<PlayerWithScore>> getTop(int count, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback);
+
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback);
+
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame);
 }
