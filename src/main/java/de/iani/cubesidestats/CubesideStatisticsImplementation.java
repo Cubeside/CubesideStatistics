@@ -52,6 +52,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private final Calendar calender = Calendar.getInstance();
     private final UUID serverid;
     private final GamePlayerCountImplementation gamePlayerCount;
+    private final Object playerListSync = new Object();
 
     public CubesideStatisticsImplementation(CubesideStatistics plugin) throws SQLException {
         this.plugin = plugin;
@@ -67,7 +68,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         offlinePlayers = new HashMap<>();
 
         reloadConfigNow();
-        plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
+        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, new Runnable() {
             @Override
             public void run() {
                 cleanupCache();
@@ -210,27 +211,31 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
     @Override
     public PlayerStatistics getStatistics(UUID owner) {
-        PlayerStatisticsImplementation stats = onlinePlayers.get(owner);
-        if (stats != null) {
+        synchronized (playerListSync) {
+            PlayerStatisticsImplementation stats = onlinePlayers.get(owner);
+            if (stats != null) {
+                return stats;
+            }
+            TimestampedValue<PlayerStatisticsImplementation> timestampedStats = offlinePlayers.get(owner);
+            if (timestampedStats != null) {
+                return timestampedStats.get();
+            }
+            stats = new PlayerStatisticsImplementation(this, owner, null);
+            offlinePlayers.put(owner, new TimestampedValue<>(stats));
             return stats;
         }
-        TimestampedValue<PlayerStatisticsImplementation> timestampedStats = offlinePlayers.get(owner);
-        if (timestampedStats != null) {
-            return timestampedStats.get();
-        }
-        stats = new PlayerStatisticsImplementation(this, owner, null);
-        offlinePlayers.put(owner, new TimestampedValue<>(stats));
-        return stats;
     }
 
     private void cleanupCache() {
-        if (!offlinePlayers.isEmpty()) {
-            long minTimestamp = System.nanoTime() - MIN_CACHE_NANOS;
-            Iterator<TimestampedValue<PlayerStatisticsImplementation>> it = offlinePlayers.values().iterator();
-            while (it.hasNext()) {
-                TimestampedValue<PlayerStatisticsImplementation> current = it.next();
-                if (current.getTimestamp() < minTimestamp) {
-                    it.remove();
+        synchronized (playerListSync) {
+            if (!offlinePlayers.isEmpty()) {
+                long minTimestamp = System.nanoTime() - MIN_CACHE_NANOS;
+                Iterator<TimestampedValue<PlayerStatisticsImplementation>> it = offlinePlayers.values().iterator();
+                while (it.hasNext()) {
+                    TimestampedValue<PlayerStatisticsImplementation> current = it.next();
+                    if (current.getTimestamp() < minTimestamp) {
+                        it.remove();
+                    }
                 }
             }
         }
@@ -305,14 +310,18 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     }
 
     public void playerJoined(Player player) {
-        TimestampedValue<PlayerStatisticsImplementation> old = offlinePlayers.remove(player.getUniqueId());
-        onlinePlayers.put(player.getUniqueId(), old == null ? new PlayerStatisticsImplementation(this, player.getUniqueId(), settingKeys.values()) : old.get().reloadSettingsAsync(settingKeys.values()));
+        synchronized (playerListSync) {
+            TimestampedValue<PlayerStatisticsImplementation> old = offlinePlayers.remove(player.getUniqueId());
+            onlinePlayers.put(player.getUniqueId(), old == null ? new PlayerStatisticsImplementation(this, player.getUniqueId(), settingKeys.values()) : old.get().reloadSettingsAsync(settingKeys.values()));
+        }
     }
 
     public void playerDisconnected(Player player) {
-        PlayerStatisticsImplementation old = onlinePlayers.remove(player.getUniqueId());
-        if (old != null) {
-            offlinePlayers.put(player.getUniqueId(), new TimestampedValue<>(old));
+        synchronized (playerListSync) {
+            PlayerStatisticsImplementation old = onlinePlayers.remove(player.getUniqueId());
+            if (old != null) {
+                offlinePlayers.put(player.getUniqueId(), new TimestampedValue<>(old));
+            }
         }
     }
 
