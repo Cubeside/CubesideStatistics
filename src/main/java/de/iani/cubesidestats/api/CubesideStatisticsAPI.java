@@ -3,6 +3,7 @@ package de.iani.cubesidestats.api;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Future;
 
 public interface CubesideStatisticsAPI {
     /**
@@ -141,4 +142,13 @@ public interface CubesideStatisticsAPI {
      *            A callback that is called when all data is collected. This callback is called in the main thread.
      */
     public void queryStats(Collection<StatisticsQueryKey> querys, Callback<Map<StatisticsQueryKey, Integer>> callback);
+
+    /**
+     * Querys multiple statistics values. They can be for different players and can also include global statistics.
+     *
+     * @param querys
+     *            The querys to be executed
+     * @return The collected data.
+     */
+    public Future<Map<StatisticsQueryKey, Integer>> queryStats(Collection<StatisticsQueryKey> querys);
 }

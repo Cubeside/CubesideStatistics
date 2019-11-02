@@ -97,4 +97,37 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
         });
         return future;
     }
+
+    @Override
+    public Future<Integer> getEntriesCount(TimeFrame timeFrame) {
+        boolean monthly = timeFrame == TimeFrame.MONTH;
+        if (monthly && !isMonthlyStats()) {
+            throw new IllegalArgumentException("There are no monthly stats for this key");
+        }
+        boolean daily = timeFrame == TimeFrame.DAY;
+        if (daily && !isDailyStats()) {
+            throw new IllegalArgumentException("There are no daily stats for this key");
+        }
+        int timekey = -1;
+        if (monthly) {
+            timekey = stats.getCurrentMonthKey();
+        } else if (daily) {
+            timekey = stats.getCurrentDayKey();
+        }
+        final int timekey2 = timekey;
+
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                try {
+                    int entries = database.getScoreEntries(StatisticKeyImplementation.this, timekey2);
+                    future.complete(entries);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get top scores for " + name, e);
+                }
+            }
+        });
+        return future;
+    }
 }

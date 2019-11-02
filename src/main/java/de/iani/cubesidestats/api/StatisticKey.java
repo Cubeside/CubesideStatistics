@@ -23,4 +23,6 @@ public interface StatisticKey {
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback);
 
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame);
+
+    public Future<Integer> getEntriesCount(TimeFrame timeFrame);
 }

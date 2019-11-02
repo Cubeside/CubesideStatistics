@@ -48,6 +48,7 @@ public class StatisticsDatabase {
     private final String getPositionMin;
     private final String getTopScoresDesc;
     private final String getTopScoresAsc;
+    private final String getScoreEntries;
 
     private final String getAllAchivementKeys;
     private final String createAchivementKey;
@@ -106,6 +107,7 @@ public class StatisticsDatabase {
 
         getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?, ?";
         getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC LIMIT ?, ?";
+        getScoreEntries = "SELECT COUNT(*) as counter FROM " + prefix + "_scores WHERE statsid = ? AND month = ?";
 
         getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
         createAchivementKey = "INSERT IGNORE INTO " + prefix + "_achivementkeys (name, properties) VALUE (?, ?)";
@@ -756,6 +758,25 @@ public class StatisticsDatabase {
                 }
                 results.close();
                 return (rv == null ? 0 : rv) + 1;
+            }
+        });
+    }
+
+    public int getScoreEntries(StatisticKeyImplementation key, int month) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getScoreEntries);
+                smt.setInt(1, keyId);
+                smt.setInt(2, month);
+                ResultSet results = smt.executeQuery();
+                int result = 0;
+                if (results.next()) {
+                    result = results.getInt(1);
+                }
+                results.close();
+                return result;
             }
         });
     }

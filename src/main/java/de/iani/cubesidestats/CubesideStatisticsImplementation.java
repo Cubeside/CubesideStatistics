@@ -32,7 +32,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 import org.bukkit.entity.Player;
 
@@ -499,12 +501,23 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     }
 
     @Override
+    public Future<Map<StatisticsQueryKey, Integer>> queryStats(Collection<StatisticsQueryKey> querys) {
+        return queryStatsInternal(querys, null);
+    }
+
+    @Override
     public void queryStats(Collection<StatisticsQueryKey> querys, Callback<Map<StatisticsQueryKey, Integer>> callback) {
+        queryStatsInternal(querys, callback);
+    }
+
+    private Future<Map<StatisticsQueryKey, Integer>> queryStatsInternal(Collection<StatisticsQueryKey> querys, Callback<Map<StatisticsQueryKey, Integer>> callback) {
         Preconditions.checkNotNull(querys, "querys");
-        Preconditions.checkNotNull(callback, "callback");
         ArrayList<StatisticsQueryKey> internalQuerys = new ArrayList<>(querys);
         int currentMonthKey = getCurrentMonthKey();
         int currentDayKey = getCurrentDayKey();
+
+        CompletableFuture<Map<StatisticsQueryKey, Integer>> future = new CompletableFuture<>();
+
         getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
@@ -558,8 +571,17 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                         }
                     }
                 }
-                callback.call(result);
+                future.complete(result);
+                if (callback != null) {
+                    getPlugin().getServer().getScheduler().runTask(getPlugin(), new Runnable() {
+                        @Override
+                        public void run() {
+                            callback.call(result);
+                        }
+                    });
+                }
             }
         });
+        return future;
     }
 }
