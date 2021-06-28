@@ -1,9 +1,9 @@
 package de.iani.cubesidestats;
 
 import de.iani.cubesidestats.api.Ordering;
-import de.iani.cubesidestats.sql.MySQLConnection;
-import de.iani.cubesidestats.sql.SQLConnection;
-import de.iani.cubesidestats.sql.SQLRunnable;
+import de.iani.cubesideutils.sql.MySQLConnection;
+import de.iani.cubesideutils.sql.SQLConnection;
+import de.iani.cubesideutils.sql.SQLRunnable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -137,91 +137,91 @@ public class StatisticsDatabase {
                 Statement smt = connection.createStatement();
                 if (!sqlConnection.hasTable(prefix + "_config")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_config` (" + //
-                    " `setting` varchar(50)," + //
-                    " `value` int(11)," + //
-                    " PRIMARY KEY (`setting`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `setting` varchar(50)," + //
+                            " `value` int(11)," + //
+                            " PRIMARY KEY (`setting`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_players")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_players` (" + //
-                    " `id` int(11) AUTO_INCREMENT," + //
-                    " `uuid` char(36) NOT NULL," + //
-                    " PRIMARY KEY (`id`), UNIQUE KEY (`uuid`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `id` int(11) AUTO_INCREMENT," + //
+                            " `uuid` char(36) NOT NULL," + //
+                            " PRIMARY KEY (`id`), UNIQUE KEY (`uuid`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_stats")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_stats` (" + //
-                    " `id` int(11) AUTO_INCREMENT," + //
-                    " `name` varchar(255) NOT NULL," + //
-                    " `properties` text NOT NULL," + //
-                    " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `id` int(11) AUTO_INCREMENT," + //
+                            " `name` varchar(255) NOT NULL," + //
+                            " `properties` text NOT NULL," + //
+                            " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_scores")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_scores` (" + //
-                    " `playerid` int(11) NOT NULL," + //
-                    " `statsid` int(11) NOT NULL," + //
-                    " `month` int(11) NOT NULL," + //
-                    " `score` int(11) NOT NULL," + //
-                    " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `playerid` int(11) NOT NULL," + //
+                            " `statsid` int(11) NOT NULL," + //
+                            " `month` int(11) NOT NULL," + //
+                            " `score` int(11) NOT NULL," + //
+                            " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_globalstats")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_globalstats` (" + //
-                    " `id` int(11) AUTO_INCREMENT," + //
-                    " `name` varchar(255) NOT NULL," + //
-                    " `properties` text NOT NULL," + //
-                    " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `id` int(11) AUTO_INCREMENT," + //
+                            " `name` varchar(255) NOT NULL," + //
+                            " `properties` text NOT NULL," + //
+                            " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_globalstatsvalues")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_globalstatsvalues` (" + //
-                    " `statsid` int(11) NOT NULL," + //
-                    " `month` int(11) NOT NULL," + //
-                    " `score` int(11) NOT NULL," + //
-                    " PRIMARY KEY (`month`,`statsid`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `statsid` int(11) NOT NULL," + //
+                            " `month` int(11) NOT NULL," + //
+                            " `score` int(11) NOT NULL," + //
+                            " PRIMARY KEY (`month`,`statsid`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_current_players")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_current_players` (" + //
-                    " `server` char(36) NOT NULL," + //
-                    " `game` varchar(100) NOT NULL," + //
-                    " `players` int(11) NOT NULL," + //
-                    " PRIMARY KEY (`game`,`server`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `server` char(36) NOT NULL," + //
+                            " `game` varchar(100) NOT NULL," + //
+                            " `players` int(11) NOT NULL," + //
+                            " PRIMARY KEY (`game`,`server`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_achivementkeys")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_achivementkeys` (" + //
-                    " `id` int(11) AUTO_INCREMENT," + //
-                    " `name` varchar(255) NOT NULL," + //
-                    " `properties` text NOT NULL," + //
-                    " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `id` int(11) AUTO_INCREMENT," + //
+                            " `name` varchar(255) NOT NULL," + //
+                            " `properties` text NOT NULL," + //
+                            " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_achivements")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_achivements` (" + //
-                    " `playerid` int(11) NOT NULL," + //
-                    " `achivmenentid` int(11) NOT NULL," + //
-                    " `level` int(11) NOT NULL," + //
-                    " PRIMARY KEY (`playerid`,`achivmenentid`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `playerid` int(11) NOT NULL," + //
+                            " `achivmenentid` int(11) NOT NULL," + //
+                            " `level` int(11) NOT NULL," + //
+                            " PRIMARY KEY (`playerid`,`achivmenentid`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
 
                 if (!sqlConnection.hasTable(prefix + "_settingkeys")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_settingkeys` (" + //
-                    " `id` int(11) AUTO_INCREMENT," + //
-                    " `name` varchar(255) NOT NULL," + //
-                    " `properties` text NOT NULL," + //
-                    " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `id` int(11) AUTO_INCREMENT," + //
+                            " `name` varchar(255) NOT NULL," + //
+                            " `properties` text NOT NULL," + //
+                            " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_settings")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_settings` (" + //
-                    " `playerid` int(11) NOT NULL," + //
-                    " `settingid` int(11) NOT NULL," + //
-                    " `value` int(11) NOT NULL," + //
-                    " PRIMARY KEY (`playerid`,`settingid`)" + //
-                    " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                            " `playerid` int(11) NOT NULL," + //
+                            " `settingid` int(11) NOT NULL," + //
+                            " `value` int(11) NOT NULL," + //
+                            " PRIMARY KEY (`playerid`,`settingid`)" + //
+                            " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 return null;
             }

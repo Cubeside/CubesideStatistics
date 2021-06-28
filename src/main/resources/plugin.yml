@@ -5,5 +5,5 @@ description: CubesideStatistics
 authors:
   - Brokkonaut
 api-version: 1.13
-depend: [PlayerUUIDCache, CubesideSettings]
+depend: [PlayerUUIDCache, CubesideSettings, CubesideUtils]
 # loadbefore: [Vault]
