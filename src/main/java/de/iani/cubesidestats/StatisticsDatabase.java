@@ -44,6 +44,7 @@ public class StatisticsDatabase {
     private final String maxScore;
     private final String minScore;
     private final String getScore;
+    private final String getThreeScores;
     private final String getPositionMax;
     private final String getPositionMin;
     private final String getTopScoresDesc;
@@ -102,6 +103,7 @@ public class StatisticsDatabase {
         maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
         minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
+        getThreeScores = "SELECT score, month FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month IN (?,?,?)";
         getPositionMax = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
         getPositionMin = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
 
@@ -576,10 +578,42 @@ public class StatisticsDatabase {
         });
     }
 
-    public void increaseScore(int databaseId, StatisticKeyImplementation key, int month, int day, int amount) throws SQLException {
-        this.connection.runCommands(new SQLRunnable<Void>() {
+    protected StatsUpdateResultDTO internalGetOldScores(SQLConnection sqlConnection, int databaseId, StatisticKeyImplementation key, int month, int day) throws SQLException {
+        return internalGetOldScores(sqlConnection, databaseId, key, month, day, null);
+    }
+
+    protected StatsUpdateResultDTO internalGetOldScores(SQLConnection sqlConnection, int databaseId, StatisticKeyImplementation key, int month, int day, Integer defaultValue) throws SQLException {
+        int keyId = key.getId();
+        PreparedStatement smt = sqlConnection.getOrCreateStatement(getThreeScores);
+        smt.setInt(1, databaseId);
+        smt.setInt(2, keyId);
+        smt.setInt(3, -1);
+        smt.setInt(4, key.isMonthlyStats() ? month : -1);
+        smt.setInt(5, key.isDailyStats() ? day : -1);
+        ResultSet results = smt.executeQuery();
+        Integer oldAlltime = defaultValue;
+        Integer oldMonth = defaultValue;
+        Integer oldDay = defaultValue;
+        while (results.next()) {
+            int score = results.getInt("score");
+            int monthV = results.getInt("month");
+            if (monthV == -1) {
+                oldAlltime = score;
+            } else if (key.isMonthlyStats() && monthV == month) {
+                oldMonth = score;
+            } else if (key.isDailyStats() && monthV == day) {
+                oldDay = score;
+            }
+        }
+        results.close();
+        return new StatsUpdateResultDTO(oldAlltime, oldMonth, oldDay);
+    }
+
+    public StatsUpdateResultDTO increaseScore(int databaseId, StatisticKeyImplementation key, int month, int day, int amount) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<StatsUpdateResultDTO>() {
             @Override
-            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day, 0);
                 int keyId = key.getId();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(changeScore);
                 smt.setInt(1, databaseId);
@@ -596,16 +630,23 @@ public class StatisticsDatabase {
                     smt.setInt(3, day);
                     smt.executeUpdate();
                 }
-                return null;
+                updateResult.setNewValues(or(updateResult.getOldAlltime(), 0) + amount, or(updateResult.getOldMonth(), 0) + amount, or(updateResult.getOldDay(), 0) + amount);
+                return updateResult;
             }
         });
     }
 
-    public void setScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
-        this.connection.runCommands(new SQLRunnable<Void>() {
+    protected int or(Integer nullable, int alternative) {
+        return nullable != null ? nullable : alternative;
+    }
+
+    public StatsUpdateResultDTO setScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<StatsUpdateResultDTO>() {
             @Override
-            public Void execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day);
                 int keyId = key.getId();
+
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(setScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
@@ -621,28 +662,20 @@ public class StatisticsDatabase {
                     smt.setInt(3, day);
                     smt.executeUpdate();
                 }
-                return null;
+                updateResult.setNewValues(value, value, value);
+                return updateResult;
             }
         });
     }
 
-    public boolean maxScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
-        return this.connection.runCommands(new SQLRunnable<Boolean>() {
+    public StatsUpdateResultDTO maxScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<StatsUpdateResultDTO>() {
             @Override
-            public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+            public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day);
                 int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(getScore);
-                smt.setInt(1, databaseId);
-                smt.setInt(2, keyId);
-                smt.setInt(3, -1);
-                ResultSet results = smt.executeQuery();
-                Integer old = null;
-                if (results.next()) {
-                    old = results.getInt("score");
-                }
-                results.close();
 
-                smt = sqlConnection.getOrCreateStatement(maxScore);
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(maxScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
@@ -657,28 +690,20 @@ public class StatisticsDatabase {
                     smt.setInt(3, day);
                     smt.executeUpdate();
                 }
-                return old == null || value > old.intValue();
+                updateResult.setNewValues(Math.max(or(updateResult.getOldAlltime(), Integer.MIN_VALUE), value), Math.max(or(updateResult.getOldMonth(), Integer.MIN_VALUE), value), Math.max(or(updateResult.getOldDay(), Integer.MIN_VALUE), value));
+                return updateResult;
             }
         });
     }
 
-    public boolean minScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
-        return this.connection.runCommands(new SQLRunnable<Boolean>() {
+    public StatsUpdateResultDTO minScore(int databaseId, StatisticKeyImplementation key, int month, int day, int value) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<StatsUpdateResultDTO>() {
             @Override
-            public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
-                int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(getScore);
-                smt.setInt(1, databaseId);
-                smt.setInt(2, keyId);
-                smt.setInt(3, -1);
-                ResultSet results = smt.executeQuery();
-                Integer old = null;
-                if (results.next()) {
-                    old = results.getInt("score");
-                }
-                results.close();
+            public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day);
 
-                smt = sqlConnection.getOrCreateStatement(minScore);
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(minScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
@@ -693,7 +718,8 @@ public class StatisticsDatabase {
                     smt.setInt(3, day);
                     smt.executeUpdate();
                 }
-                return old == null || value < old.intValue();
+                updateResult.setNewValues(Math.min(or(updateResult.getOldAlltime(), Integer.MAX_VALUE), value), Math.min(or(updateResult.getOldMonth(), Integer.MAX_VALUE), value), Math.min(or(updateResult.getOldDay(), Integer.MAX_VALUE), value));
+                return updateResult;
             }
         });
     }
@@ -1052,5 +1078,50 @@ public class StatisticsDatabase {
                 return result;
             }
         });
+    }
+
+    public static class StatsUpdateResultDTO {
+        private final Integer oldAlltime;
+        private final Integer oldMonth;
+        private final Integer oldDay;
+        private int newAlltime;
+        private int newMonth;
+        private int newDay;
+
+        public StatsUpdateResultDTO(Integer oldAlltime, Integer oldMonth, Integer oldDay) {
+            this.oldAlltime = oldAlltime;
+            this.oldMonth = oldMonth;
+            this.oldDay = oldDay;
+        }
+
+        protected void setNewValues(int newAlltime, int newMonth, int newDay) {
+            this.newAlltime = newAlltime;
+            this.newMonth = newMonth;
+            this.newDay = newDay;
+        }
+
+        public Integer getOldAlltime() {
+            return oldAlltime;
+        }
+
+        public Integer getOldMonth() {
+            return oldMonth;
+        }
+
+        public Integer getOldDay() {
+            return oldDay;
+        }
+
+        public int getNewAlltime() {
+            return newAlltime;
+        }
+
+        public int getNewMonth() {
+            return newMonth;
+        }
+
+        public int getNewDay() {
+            return newDay;
+        }
     }
 }

@@ -1,6 +1,7 @@
 package de.iani.cubesidestats;
 
 import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
+import de.iani.cubesidestats.StatisticsDatabase.StatsUpdateResultDTO;
 import de.iani.cubesidestats.api.AchivementKey;
 import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.PlayerStatistics;
@@ -8,6 +9,7 @@ import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
 import de.iani.cubesidestats.api.event.PlayerSettingsLoadedEvent;
+import de.iani.cubesidestats.api.event.PlayerStatisticUpdatedEvent;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashMap;
@@ -15,6 +17,7 @@ import java.util.HashSet;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.logging.Level;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -96,6 +99,10 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         return playerId;
     }
 
+    protected void callUpdatedEventInMainThread(StatisticKey key, StatsUpdateResultDTO result) {
+        Bukkit.getScheduler().runTask(stats.getPlugin(), () -> new PlayerStatisticUpdatedEvent(playerId, key, result.getOldAlltime(), result.getNewAlltime(), result.getOldMonth(), result.getNewMonth(), result.getOldDay(), result.getNewDay()).callEvent());
+    }
+
     @Override
     public void decreaseScore(StatisticKey key, int amount) {
         increaseScore(key, -amount);
@@ -116,7 +123,8 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    database.increaseScore(databaseId, (StatisticKeyImplementation) key, month, daykey, amount);
+                    StatsUpdateResultDTO result = database.increaseScore(databaseId, (StatisticKeyImplementation) key, month, daykey, amount);
+                    callUpdatedEventInMainThread(key, result);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not increase score for " + playerId, e);
                 }
@@ -139,7 +147,8 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    database.setScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
+                    StatsUpdateResultDTO result = database.setScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
+                    callUpdatedEventInMainThread(key, result);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
                 }
@@ -167,15 +176,17 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    boolean result = database.maxScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
+                    StatsUpdateResultDTO result = database.maxScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
                     if (updatedCallback != null) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
-                                updatedCallback.call(result);
+                                boolean updated = result.getOldAlltime() == null || result.getOldAlltime() < result.getNewAlltime();
+                                updatedCallback.call(updated);
                             }
                         });
                     }
+                    callUpdatedEventInMainThread(key, result);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
                 }
@@ -203,15 +214,17 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    boolean result = database.minScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
+                    StatsUpdateResultDTO result = database.minScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
                     if (updatedCallback != null) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
-                                updatedCallback.call(result);
+                                boolean updated = result.getOldAlltime() == null || result.getOldAlltime() > result.getNewAlltime();
+                                updatedCallback.call(updated);
                             }
                         });
                     }
+                    callUpdatedEventInMainThread(key, result);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set score for " + playerId, e);
                 }
