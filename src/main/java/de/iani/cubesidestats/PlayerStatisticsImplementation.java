@@ -115,6 +115,10 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         }
         final int month = stats.getCurrentMonthKey();
         final int daykey = stats.getCurrentDayKey();
+        internalIncreaseScore(key, amount, month, daykey);
+    }
+
+    public void internalIncreaseScore(StatisticKey key, int amount, final int monthKey, final int dayKey) {
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
             public void process(StatisticsDatabase database) {
@@ -123,7 +127,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     return;
                 }
                 try {
-                    StatsUpdateResultDTO result = database.increaseScore(databaseId, (StatisticKeyImplementation) key, month, daykey, amount);
+                    StatsUpdateResultDTO result = database.increaseScore(databaseId, (StatisticKeyImplementation) key, monthKey, dayKey, amount);
                     callUpdatedEventInMainThread(key, result);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not increase score for " + playerId, e);
