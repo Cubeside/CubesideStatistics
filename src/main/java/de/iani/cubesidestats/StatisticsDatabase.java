@@ -1,5 +1,6 @@
 package de.iani.cubesidestats;
 
+import com.google.common.base.Preconditions;
 import de.iani.cubesidestats.api.Ordering;
 import de.iani.cubesideutils.sql.MySQLConnection;
 import de.iani.cubesideutils.sql.SQLConnection;
@@ -47,6 +48,9 @@ public class StatisticsDatabase {
     private final String getThreeScores;
     private final String getPositionMax;
     private final String getPositionMin;
+    private final String getPositionMaxTotalOrder;
+    private final String getPositionMinTotalOrder;
+
     private final String getTopScoresDesc;
     private final String getTopScoresAsc;
     private final String getScoreEntries;
@@ -107,8 +111,18 @@ public class StatisticsDatabase {
         getPositionMax = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
         getPositionMin = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
 
-        getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC LIMIT ?, ?";
-        getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC LIMIT ?, ?";
+        getPositionMaxTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MAX(score) as score FROM "
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t) and playerid > ? "
+                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM "
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)) as t2";
+
+        getPositionMinTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MAX(score) as score FROM "
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t) and playerid < ? "
+                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MAX(score) as score FROM "
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)) as t2";
+
+        getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC, playerid DESC LIMIT ?, ?";
+        getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC, playerid ASC LIMIT ?, ?";
         getScoreEntries = "SELECT COUNT(*) as counter FROM " + prefix + "_scores WHERE statsid = ? AND month = ?";
 
         getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
@@ -165,7 +179,7 @@ public class StatisticsDatabase {
                             " `statsid` int(11) NOT NULL," + //
                             " `month` int(11) NOT NULL," + //
                             " `score` int(11) NOT NULL," + //
-                            " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`)" + //
+                            " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`,`playerid`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
                 }
                 if (!sqlConnection.hasTable(prefix + "_globalstats")) {
@@ -788,6 +802,62 @@ public class StatisticsDatabase {
         });
     }
 
+    public Integer getPositionMaxTotalOrder(int databaseId, StatisticKeyImplementation key, int month) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionMaxTotalOrder);
+                smt.setInt(1, keyId);
+                smt.setInt(2, month);
+                smt.setInt(3, databaseId);
+                smt.setInt(4, keyId);
+                smt.setInt(5, month);
+                smt.setInt(6, databaseId);
+                smt.setInt(7, keyId);
+                smt.setInt(8, month);
+                smt.setInt(9, databaseId);
+                smt.setInt(10, keyId);
+                smt.setInt(11, month);
+                ResultSet results = smt.executeQuery();
+                Integer rv = null;
+                if (results.next()) {
+                    rv = results.getInt("count");
+                }
+                results.close();
+                return (rv == null ? 0 : rv) + 1;
+            }
+        });
+    }
+
+    public Integer getPositionMinTotalOrder(int databaseId, StatisticKeyImplementation key, int month) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionMinTotalOrder);
+                smt.setInt(1, keyId);
+                smt.setInt(2, month);
+                smt.setInt(3, databaseId);
+                smt.setInt(4, keyId);
+                smt.setInt(5, month);
+                smt.setInt(6, databaseId);
+                smt.setInt(7, keyId);
+                smt.setInt(8, month);
+                smt.setInt(9, databaseId);
+                smt.setInt(10, keyId);
+                smt.setInt(11, month);
+                ResultSet results = smt.executeQuery();
+                Integer rv = null;
+                if (results.next()) {
+                    rv = results.getInt("count");
+                }
+                results.close();
+                return (rv == null ? 0 : rv) + 1;
+            }
+        });
+    }
+
     public int getScoreEntries(StatisticKeyImplementation key, int month) throws SQLException {
         return this.connection.runCommands(new SQLRunnable<Integer>() {
             @Override
@@ -808,6 +878,8 @@ public class StatisticsDatabase {
     }
 
     public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int start, int count, Ordering order, int month) throws SQLException {
+        Preconditions.checkArgument(start >= 0, "start must be >= 0, but is %s", start);
+        Preconditions.checkArgument(count >= 0, "count must be >= 0, but is %s", count);
         return this.connection.runCommands(new SQLRunnable<List<InternalPlayerWithScore>>() {
             @Override
             public List<InternalPlayerWithScore> execute(Connection connection, SQLConnection sqlConnection) throws SQLException {

@@ -543,6 +543,16 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                                 if (pos != null) {
                                     result.put(queryKey, pos);
                                 }
+                            } else if (playerQueryKey.getType() == QueryType.POSITION_MAX_TOTAL_ORDER) {
+                                Integer pos = player.internalGetPositionMaxTotalOrderInMonth(database, playerQueryKey.getKey(), timeKey);
+                                if (pos != null) {
+                                    result.put(queryKey, pos);
+                                }
+                            } else if (playerQueryKey.getType() == QueryType.POSITION_MIN_TOTAL_ORDER) {
+                                Integer pos = player.internalGetPositionMinTotalOrderInMonth(database, playerQueryKey.getKey(), timeKey);
+                                if (pos != null) {
+                                    result.put(queryKey, pos);
+                                }
                             } else if (playerQueryKey.getType() == QueryType.SCORE) {
                                 Integer score = player.internalGetScoreInMonth(database, playerQueryKey.getKey(), timeKey);
                                 result.put(queryKey, score);

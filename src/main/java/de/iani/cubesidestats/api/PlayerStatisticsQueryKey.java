@@ -6,7 +6,9 @@ public final class PlayerStatisticsQueryKey implements StatisticsQueryKey {
     public enum QueryType {
         SCORE,
         POSITION_MAX,
-        POSITION_MIN
+        POSITION_MIN,
+        POSITION_MAX_TOTAL_ORDER,
+        POSITION_MIN_TOTAL_ORDER
     }
 
     private final PlayerStatistics player;

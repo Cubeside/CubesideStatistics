@@ -339,6 +339,32 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         return null;
     }
 
+    protected Integer internalGetPositionMaxTotalOrderInMonth(StatisticsDatabase database, StatisticKey key, int month) {
+        if (databaseId < 0) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+            return null;
+        }
+        try {
+            return database.getPositionMaxTotalOrder(databaseId, (StatisticKeyImplementation) key, month);
+        } catch (SQLException e) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get position for score for " + playerId, e);
+        }
+        return null;
+    }
+
+    protected Integer internalGetPositionMinTotalOrderInMonth(StatisticsDatabase database, StatisticKey key, int month) {
+        if (databaseId < 0) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+            return null;
+        }
+        try {
+            return database.getPositionMinTotalOrder(databaseId, (StatisticKeyImplementation) key, month);
+        } catch (SQLException e) {
+            stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get position for score for " + playerId, e);
+        }
+        return null;
+    }
+
     @Override
     public void grantAchivement(AchivementKey key) {
         grantAchivement(key, 1, null);
