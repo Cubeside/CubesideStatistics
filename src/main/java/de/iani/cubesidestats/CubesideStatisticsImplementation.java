@@ -555,7 +555,9 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                                 }
                             } else if (playerQueryKey.getType() == QueryType.SCORE) {
                                 Integer score = player.internalGetScoreInMonth(database, playerQueryKey.getKey(), timeKey);
-                                result.put(queryKey, score);
+                                if (score != null) {
+                                    result.put(queryKey, score);
+                                }
                             }
                         }
                     } else if (queryKey instanceof PlayerAchivementQueryKey) {
