@@ -584,7 +584,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                     }
                 }
                 future.complete(result);
-                if (callback != null) {
+                if (callback != null && getPlugin().isEnabled()) {
                     getPlugin().getServer().getScheduler().runTask(getPlugin(), new Runnable() {
                         @Override
                         public void run() {

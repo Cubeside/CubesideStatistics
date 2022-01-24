@@ -82,7 +82,7 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
                     }
                     List<PlayerWithScore> unmodifiableScoreList = Collections.unmodifiableList(scoreList);
                     future.complete(unmodifiableScoreList);
-                    if (resultCallback != null) {
+                    if (resultCallback != null && stats.getPlugin().isEnabled()) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {

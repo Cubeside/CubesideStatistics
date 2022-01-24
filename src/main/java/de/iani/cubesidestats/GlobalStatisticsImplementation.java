@@ -78,7 +78,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
             public void process(StatisticsDatabase database) {
                 try {
                     boolean result = database.maxGlobalStatsValue((GlobalStatisticKeyImplementation) key, month, daykey, value);
-                    if (updatedCallback != null) {
+                    if (updatedCallback != null && stats.getPlugin().isEnabled()) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
@@ -110,7 +110,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
             public void process(StatisticsDatabase database) {
                 try {
                     boolean result = database.minGlobalStatsValue((GlobalStatisticKeyImplementation) key, month, daykey, value);
-                    if (updatedCallback != null) {
+                    if (updatedCallback != null && stats.getPlugin().isEnabled()) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
@@ -151,7 +151,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
             @Override
             public void process(StatisticsDatabase database) {
                 Integer score = internalGetScoreInMonth(database, key, month);
-                if (score != null) {
+                if (score != null && stats.getPlugin().isEnabled()) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {

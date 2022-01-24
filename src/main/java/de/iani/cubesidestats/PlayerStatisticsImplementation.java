@@ -74,24 +74,26 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
     }
 
     protected void internalLoadSettings(Collection<SettingKeyImplementation> settingKeys, StatisticsDatabase database) throws SQLException {
-        HashMap<SettingKeyImplementation, Integer> settingsTemp = database.getSettingValues(databaseId, settingKeys);
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Entry<SettingKeyImplementation, Integer> e : settingsTemp.entrySet()) {
-                    SettingKeyImplementation key = e.getKey();
-                    if (doNotLoadSettings == null || !doNotLoadSettings.contains(key)) {
-                        settings.put(key, e.getValue());
+        if (stats.getPlugin().isEnabled()) {
+            HashMap<SettingKeyImplementation, Integer> settingsTemp = database.getSettingValues(databaseId, settingKeys);
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    for (Entry<SettingKeyImplementation, Integer> e : settingsTemp.entrySet()) {
+                        SettingKeyImplementation key = e.getKey();
+                        if (doNotLoadSettings == null || !doNotLoadSettings.contains(key)) {
+                            settings.put(key, e.getValue());
+                        }
+                    }
+                    doNotLoadSettings = null;
+                    settingsLoaded = true;
+                    Player owner = stats.getPlugin().getServer().getPlayer(playerId);
+                    if (owner != null) {
+                        stats.getPlugin().getServer().getPluginManager().callEvent(new PlayerSettingsLoadedEvent(owner));
                     }
                 }
-                doNotLoadSettings = null;
-                settingsLoaded = true;
-                Player owner = stats.getPlugin().getServer().getPlayer(playerId);
-                if (owner != null) {
-                    stats.getPlugin().getServer().getPluginManager().callEvent(new PlayerSettingsLoadedEvent(owner));
-                }
-            }
-        }.runTask(stats.getPlugin());
+            }.runTask(stats.getPlugin());
+        }
     }
 
     @Override
@@ -100,7 +102,9 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
     }
 
     protected void callUpdatedEventInMainThread(StatisticKey key, StatsUpdateResultDTO result) {
-        Bukkit.getScheduler().runTask(stats.getPlugin(), () -> new PlayerStatisticUpdatedEvent(playerId, key, result.getOldAlltime(), result.getNewAlltime(), result.getOldMonth(), result.getNewMonth(), result.getOldDay(), result.getNewDay()).callEvent());
+        if (stats.getPlugin().isEnabled()) {
+            Bukkit.getScheduler().runTask(stats.getPlugin(), () -> new PlayerStatisticUpdatedEvent(playerId, key, result.getOldAlltime(), result.getNewAlltime(), result.getOldMonth(), result.getNewMonth(), result.getOldDay(), result.getNewDay()).callEvent());
+        }
     }
 
     @Override
@@ -181,7 +185,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 }
                 try {
                     StatsUpdateResultDTO result = database.maxScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
-                    if (updatedCallback != null) {
+                    if (updatedCallback != null && stats.getPlugin().isEnabled()) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
@@ -219,7 +223,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 }
                 try {
                     StatsUpdateResultDTO result = database.minScore(databaseId, (StatisticKeyImplementation) key, month, daykey, value);
-                    if (updatedCallback != null) {
+                    if (updatedCallback != null && stats.getPlugin().isEnabled()) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
@@ -267,12 +271,14 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
             @Override
             public void process(StatisticsDatabase database) {
                 Integer score = internalGetScoreInMonth(database, key, month);
-                stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                    @Override
-                    public void run() {
-                        scoreCallback.call(score);
-                    }
-                });
+                if (stats.getPlugin().isEnabled()) {
+                    stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                        @Override
+                        public void run() {
+                            scoreCallback.call(score);
+                        }
+                    });
+                }
             }
         });
     }
@@ -301,7 +307,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
             @Override
             public void process(StatisticsDatabase database) {
                 Integer score = internalGetPositionMaxInMonth(database, key, month);
-                if (score != null) {
+                if (score != null && stats.getPlugin().isEnabled()) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {
@@ -397,7 +403,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 }
                 try {
                     Integer oldLevel = database.maxAchivementLevel(databaseId, (AchivementKeyImplementation) key, level, updatedCallback != null);
-                    if (updatedCallback != null && (oldLevel == null || level != oldLevel)) {
+                    if (updatedCallback != null && (oldLevel == null || level != oldLevel) && stats.getPlugin().isEnabled()) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
@@ -431,7 +437,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 }
                 try {
                     Integer oldLevel = database.setAchivementLevel(databaseId, (AchivementKeyImplementation) key, 0, updatedCallback != null);
-                    if (updatedCallback != null && oldLevel != null && oldLevel > 0) {
+                    if (updatedCallback != null && oldLevel != null && oldLevel > 0 && stats.getPlugin().isEnabled()) {
                         stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                             @Override
                             public void run() {
@@ -463,12 +469,14 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 }
                 try {
                     Integer level = database.getAchivementLevel(databaseId, (AchivementKeyImplementation) key);
-                    stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                        @Override
-                        public void run() {
-                            achivementCallback.call(level > 0);
-                        }
-                    });
+                    if (stats.getPlugin().isEnabled()) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                achivementCallback.call(level > 0);
+                            }
+                        });
+                    }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get achivement " + key.getName() + " for " + playerId, e);
                 }
@@ -488,7 +496,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
             @Override
             public void process(StatisticsDatabase database) {
                 Integer level = internalGetAchivementLevel(database, key);
-                if (level != null) {
+                if (level != null && stats.getPlugin().isEnabled()) {
                     stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                         @Override
                         public void run() {
