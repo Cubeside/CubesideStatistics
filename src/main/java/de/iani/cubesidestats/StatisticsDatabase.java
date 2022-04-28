@@ -45,6 +45,7 @@ public class StatisticsDatabase {
     private final String maxScore;
     private final String minScore;
     private final String getScore;
+    private final String deleteScore;
     private final String getThreeScores;
     private final String getPositionMax;
     private final String getPositionMin;
@@ -106,6 +107,8 @@ public class StatisticsDatabase {
         setScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = ?";
         maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
         minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
+        deleteScore = "DELETE FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ?";
+
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
         getThreeScores = "SELECT score, month FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month IN (?,?,?)";
         getPositionMax = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
@@ -734,6 +737,19 @@ public class StatisticsDatabase {
                 }
                 updateResult.setNewValues(Math.min(or(updateResult.getOldAlltime(), Integer.MAX_VALUE), value), Math.min(or(updateResult.getOldMonth(), Integer.MAX_VALUE), value), Math.min(or(updateResult.getOldDay(), Integer.MAX_VALUE), value));
                 return updateResult;
+            }
+        });
+    }
+
+    public boolean deleteScore(int databaseId, StatisticKeyImplementation key) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Boolean>() {
+            @Override
+            public Boolean execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(deleteScore);
+                smt.setInt(1, databaseId);
+                smt.setInt(2, keyId);
+                return smt.executeUpdate() > 0;
             }
         });
     }

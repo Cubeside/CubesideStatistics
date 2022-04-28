@@ -165,6 +165,27 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
     }
 
     @Override
+    public void deleteScore(StatisticKey key) {
+        if (!(key instanceof StatisticKeyImplementation)) {
+            throw new IllegalArgumentException("key");
+        }
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                if (databaseId < 0) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
+                    return;
+                }
+                try {
+                    database.deleteScore(databaseId, (StatisticKeyImplementation) key);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not delete score for " + playerId, e);
+                }
+            }
+        });
+    }
+
+    @Override
     public void maxScore(StatisticKey key, int value) {
         maxScore(key, value, null);
     }

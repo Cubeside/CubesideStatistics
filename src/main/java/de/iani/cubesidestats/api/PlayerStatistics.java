@@ -11,6 +11,8 @@ public interface PlayerStatistics {
 
     public void setScore(StatisticKey key, int value);
 
+    public void deleteScore(StatisticKey key);
+
     public void maxScore(StatisticKey key, int value);
 
     public void maxScore(StatisticKey key, int value, Callback<Boolean> updatedCallback);
