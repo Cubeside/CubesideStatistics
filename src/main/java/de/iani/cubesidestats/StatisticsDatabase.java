@@ -114,17 +114,17 @@ public class StatisticsDatabase {
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
         getThreeScores = "SELECT score, month FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month IN (?,?,?)";
         getPositionMax = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
-        getPositionMin = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
+        getPositionMin = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MIN(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
 
         getPositionMaxTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MAX(score) as score FROM "
                 + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t) and playerid > ? "
                 + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM "
                 + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)) as t2";
 
-        getPositionMinTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MAX(score) as score FROM "
-                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t) and playerid < ? "
-                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MAX(score) as score FROM "
-                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)) as t2";
+        getPositionMinTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MIN(score) as score FROM "
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t) and playerid < ? "
+                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MIN(score) as score FROM "
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)) as t2";
 
         getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC, playerid DESC LIMIT ?, ?";
         getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC, playerid ASC LIMIT ?, ?";
