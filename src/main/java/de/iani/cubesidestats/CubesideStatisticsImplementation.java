@@ -37,6 +37,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
 import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 
 public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private GlobalStatisticsImplementation globalStatistics;
@@ -47,7 +50,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private HashMap<UUID, PlayerStatisticsImplementation> onlinePlayers;
     private HashMap<UUID, TimestampedValue<PlayerStatisticsImplementation>> offlinePlayers;
     private StatisticsDatabase database;
-    private CubesideStatistics plugin;
+    private Plugin plugin;
     private WorkerThread workerThread;
     private int configSerial = -1;
     private final static int CONFIG_RELOAD_TICKS = 20 * 60 * 5;// 5 minutes (in ticks)
@@ -57,12 +60,13 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private final GamePlayerCountImplementation gamePlayerCount;
     private final Object playerListSync = new Object();
     private final Object keySync = new Object();
+    private final BukkitTask reloadConfigTimer;
+    private final PlayerListener listener;
 
-    public CubesideStatisticsImplementation(CubesideStatistics plugin) throws SQLException {
+    public CubesideStatisticsImplementation(Plugin plugin, SQLConfig config) throws SQLException {
         this.plugin = plugin;
-        plugin.saveDefaultConfig();
         serverid = loadOrCreateServerId();
-        database = new StatisticsDatabase(this, new SQLConfig(plugin.getConfig().getConfigurationSection("database")));
+        database = new StatisticsDatabase(this, config);
 
         globalStatisticKeys = new ConcurrentHashMap<>();
         statisticKeys = new ConcurrentHashMap<>();
@@ -72,7 +76,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         offlinePlayers = new HashMap<>();
 
         reloadConfigNow();
-        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, new Runnable() {
+        reloadConfigTimer = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, new Runnable() {
             @Override
             public void run() {
                 cleanupCache();
@@ -80,7 +84,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
             }
         }, CONFIG_RELOAD_TICKS, CONFIG_RELOAD_TICKS);
 
-        plugin.getServer().getPluginManager().registerEvents(new PlayerListener(this), plugin);
+        plugin.getServer().getPluginManager().registerEvents(listener = new PlayerListener(this), plugin);
 
         workerThread = new WorkerThread();
         workerThread.start();
@@ -123,6 +127,12 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     }
 
     public void shutdown() {
+        if (listener != null) {
+            HandlerList.unregisterAll(listener);
+        }
+        if (reloadConfigTimer != null) {
+            reloadConfigTimer.cancel();
+        }
         if (workerThread != null) {
             gamePlayerCount.clearLocalPlayers();
             workerThread.shutdown();
@@ -133,7 +143,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         return workerThread;
     }
 
-    public CubesideStatistics getPlugin() {
+    public Plugin getPlugin() {
         return plugin;
     }
 
@@ -350,6 +360,9 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
         public void addWork(WorkEntry e) {
             synchronized (work) {
+                if (stopping) {
+                    return;
+                }
                 work.addLast(e);
                 work.notify();
             }

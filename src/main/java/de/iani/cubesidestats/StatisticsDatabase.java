@@ -82,7 +82,9 @@ public class StatisticsDatabase {
         this.impl = impl;
         connection = new MySQLConnection(config.getHost(), config.getDatabase(), config.getUser(), config.getPassword());
         String prefix = config.getTablePrefix();
-        updateTables(prefix);
+        if (config.isCheckTables()) {
+            updateTables(prefix);
+        }
 
         getConfigValue = "SELECT value FROM " + prefix + "_config WHERE setting = ?";
         increaseConfigValue = "INSERT INTO " + prefix + "_config (setting, `value`) VALUE (?, 1) ON DUPLICATE KEY UPDATE `value` = `value` + 1";

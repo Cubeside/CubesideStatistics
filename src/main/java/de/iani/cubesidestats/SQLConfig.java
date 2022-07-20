@@ -1,6 +1,5 @@
 package de.iani.cubesidestats;
 
-
 import org.bukkit.configuration.ConfigurationSection;
 
 public class SQLConfig {
@@ -14,7 +13,13 @@ public class SQLConfig {
 
     private String tableprefix = "cubeside_settings";
 
+    private boolean checkTables;
+
     public SQLConfig(ConfigurationSection section) {
+        this(section, true);
+    }
+
+    public SQLConfig(ConfigurationSection section, boolean checkTables) {
         if (section != null) {
             host = section.getString("host", host);
             user = section.getString("user", user);
@@ -22,6 +27,7 @@ public class SQLConfig {
             database = section.getString("database", database);
             tableprefix = section.getString("tableprefix", tableprefix);
         }
+        this.checkTables = checkTables;
     }
 
     public String getHost() {
@@ -42,5 +48,9 @@ public class SQLConfig {
 
     public String getTablePrefix() {
         return tableprefix;
+    }
+
+    public boolean isCheckTables() {
+        return checkTables;
     }
 }
