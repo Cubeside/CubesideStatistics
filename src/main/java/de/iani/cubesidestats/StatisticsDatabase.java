@@ -158,7 +158,7 @@ public class StatisticsDatabase {
                 Statement smt = connection.createStatement();
                 if (!sqlConnection.hasTable(prefix + "_config")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_config` (" + //
-                            " `setting` varchar(50)," + //
+                            " `setting` varchar(50) CHARACTER SET utf8 COLLATE utf8_bin," + //
                             " `value` int(11)," + //
                             " PRIMARY KEY (`setting`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
@@ -173,7 +173,7 @@ public class StatisticsDatabase {
                 if (!sqlConnection.hasTable(prefix + "_stats")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_stats` (" + //
                             " `id` int(11) AUTO_INCREMENT," + //
-                            " `name` varchar(255) NOT NULL," + //
+                            " `name` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL," + //
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
@@ -190,7 +190,7 @@ public class StatisticsDatabase {
                 if (!sqlConnection.hasTable(prefix + "_globalstats")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_globalstats` (" + //
                             " `id` int(11) AUTO_INCREMENT," + //
-                            " `name` varchar(255) NOT NULL," + //
+                            " `name` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL," + //
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
@@ -206,7 +206,7 @@ public class StatisticsDatabase {
                 if (!sqlConnection.hasTable(prefix + "_current_players")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_current_players` (" + //
                             " `server` char(36) NOT NULL," + //
-                            " `game` varchar(100) NOT NULL," + //
+                            " `game` varchar(100) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL," + //
                             " `players` int(11) NOT NULL," + //
                             " PRIMARY KEY (`game`,`server`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
@@ -214,7 +214,7 @@ public class StatisticsDatabase {
                 if (!sqlConnection.hasTable(prefix + "_achivementkeys")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_achivementkeys` (" + //
                             " `id` int(11) AUTO_INCREMENT," + //
-                            " `name` varchar(255) NOT NULL," + //
+                            " `name` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL," + //
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
@@ -231,7 +231,7 @@ public class StatisticsDatabase {
                 if (!sqlConnection.hasTable(prefix + "_settingkeys")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_settingkeys` (" + //
                             " `id` int(11) AUTO_INCREMENT," + //
-                            " `name` varchar(255) NOT NULL," + //
+                            " `name` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL," + //
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
