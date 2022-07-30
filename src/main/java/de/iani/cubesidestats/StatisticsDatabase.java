@@ -162,6 +162,11 @@ public class StatisticsDatabase {
                             " `value` int(11)," + //
                             " PRIMARY KEY (`setting`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                } else {
+                    ResultSet rs = smt.executeQuery("SHOW FULL COLUMNS FROM `" + prefix + "_config` WHERE Field = \"setting\" AND Collation = \"utf8_general_ci\"");
+                    if (rs.next()) {
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_config` CHANGE `setting` `setting` VARCHAR(50) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL");
+                    }
                 }
                 if (!sqlConnection.hasTable(prefix + "_players")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_players` (" + //
@@ -177,6 +182,11 @@ public class StatisticsDatabase {
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                } else {
+                    ResultSet rs = smt.executeQuery("SHOW FULL COLUMNS FROM `" + prefix + "_stats` WHERE Field = \"name\" AND Collation = \"utf8_general_ci\"");
+                    if (rs.next()) {
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_stats` CHANGE `name` `name` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL");
+                    }
                 }
                 if (!sqlConnection.hasTable(prefix + "_scores")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_scores` (" + //
@@ -194,6 +204,11 @@ public class StatisticsDatabase {
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                } else {
+                    ResultSet rs = smt.executeQuery("SHOW FULL COLUMNS FROM `" + prefix + "_globalstats` WHERE Field = \"name\" AND Collation = \"utf8_general_ci\"");
+                    if (rs.next()) {
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_globalstats` CHANGE `name` `name` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL");
+                    }
                 }
                 if (!sqlConnection.hasTable(prefix + "_globalstatsvalues")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_globalstatsvalues` (" + //
@@ -210,6 +225,12 @@ public class StatisticsDatabase {
                             " `players` int(11) NOT NULL," + //
                             " PRIMARY KEY (`game`,`server`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                } else {
+                    ResultSet rs = smt.executeQuery("SHOW FULL COLUMNS FROM `" + prefix + "_current_players` WHERE Field = \"game\" AND Collation = \"utf8_general_ci\"");
+                    if (rs.next()) {
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_current_players` CHANGE `game` `game` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL");
+                    }
+                    rs.close();
                 }
                 if (!sqlConnection.hasTable(prefix + "_achivementkeys")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_achivementkeys` (" + //
@@ -218,6 +239,11 @@ public class StatisticsDatabase {
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                } else {
+                    ResultSet rs = smt.executeQuery("SHOW FULL COLUMNS FROM `" + prefix + "_achivementkeys` WHERE Field = \"name\" AND Collation = \"utf8_general_ci\"");
+                    if (rs.next()) {
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_achivementkeys` CHANGE `name` `name` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL");
+                    }
                 }
                 if (!sqlConnection.hasTable(prefix + "_achivements")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_achivements` (" + //
@@ -235,6 +261,11 @@ public class StatisticsDatabase {
                             " `properties` text NOT NULL," + //
                             " PRIMARY KEY (`id`), UNIQUE KEY (`name`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                } else {
+                    ResultSet rs = smt.executeQuery("SHOW FULL COLUMNS FROM `" + prefix + "_settingkeys` WHERE Field = \"name\" AND Collation = \"utf8_general_ci\"");
+                    if (rs.next()) {
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_settingkeys` CHANGE `name` `name` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL");
+                    }
                 }
                 if (!sqlConnection.hasTable(prefix + "_settings")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_settings` (" + //
