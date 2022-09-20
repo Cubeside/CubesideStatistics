@@ -5,6 +5,7 @@ import de.iani.cubesidestats.CubesideStatisticsImplementation.WorkEntry;
 import de.iani.cubesidestats.api.Callback;
 import de.iani.cubesidestats.api.Ordering;
 import de.iani.cubesidestats.api.PlayerWithScore;
+import de.iani.cubesidestats.api.PositionAlgorithm;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
 import java.sql.SQLException;
@@ -45,11 +46,21 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
 
     @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame) {
-        return getTop(start, count, order, timeFrame, null);
+        return getTop(start, count, order, timeFrame, (Callback<List<PlayerWithScore>>) null);
     }
 
     @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Callback<List<PlayerWithScore>> resultCallback) {
+        return getTop(start, count, order, timeFrame, PositionAlgorithm.TOTAL_ORDER, resultCallback);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm) {
+        return getTop(start, count, order, timeFrame, positionAlgorithm, null);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm, Callback<List<PlayerWithScore>> resultCallback) {
         boolean monthly = timeFrame == TimeFrame.MONTH;
         if (monthly && !isMonthlyStats()) {
             throw new IllegalArgumentException("There are no monthly stats for this key");
@@ -62,6 +73,7 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
             throw new IllegalArgumentException("count must be >= 0");
         }
         Preconditions.checkNotNull(order, "order");
+        Preconditions.checkNotNull(positionAlgorithm, "positionAlgorithm");
         int timekey = -1;
         if (monthly) {
             timekey = stats.getCurrentMonthKey();
@@ -76,7 +88,7 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
             public void process(StatisticsDatabase database) {
                 try {
                     List<PlayerWithScore> scoreList = new ArrayList<>();
-                    List<InternalPlayerWithScore> scoreInternal = database.getTop(StatisticKeyImplementation.this, start, count, order, timekey2);
+                    List<InternalPlayerWithScore> scoreInternal = database.getTop(StatisticKeyImplementation.this, start, count, order, timekey2, positionAlgorithm);
                     for (InternalPlayerWithScore ip : scoreInternal) {
                         scoreList.add(new PlayerWithScore(stats.getStatistics(ip.getPlayer()), ip.getScore(), ip.getPosition()));
                     }

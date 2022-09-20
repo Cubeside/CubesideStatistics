@@ -2,6 +2,7 @@ package de.iani.cubesidestats;
 
 import com.google.common.base.Preconditions;
 import de.iani.cubesidestats.api.Ordering;
+import de.iani.cubesidestats.api.PositionAlgorithm;
 import de.iani.cubesideutils.sql.MySQLConnection;
 import de.iani.cubesideutils.sql.SQLConnection;
 import de.iani.cubesideutils.sql.SQLRunnable;
@@ -55,6 +56,10 @@ public class StatisticsDatabase {
     private final String getTopScoresDesc;
     private final String getTopScoresAsc;
     private final String getScoreEntries;
+    private final String getPositionMaxFromScore;
+    private final String getPositionMinFromScore;
+    private final String getPositionMaxFromDistinctScore;
+    private final String getPositionMinFromDistinctScore;
 
     private final String getAllAchivementKeys;
     private final String createAchivementKey;
@@ -129,6 +134,10 @@ public class StatisticsDatabase {
         getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC, playerid DESC LIMIT ?, ?";
         getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC, playerid ASC LIMIT ?, ?";
         getScoreEntries = "SELECT COUNT(*) as counter FROM " + prefix + "_scores WHERE statsid = ? AND month = ?";
+        getPositionMaxFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
+        getPositionMinFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
+        getPositionMaxFromDistinctScore = "SELECT COUNT(DISTINCT score) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
+        getPositionMinFromDistinctScore = "SELECT COUNT(DISTINCT score) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
 
         getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
         createAchivementKey = "INSERT IGNORE INTO " + prefix + "_achivementkeys (name, properties) VALUE (?, ?)";
@@ -926,7 +935,7 @@ public class StatisticsDatabase {
         });
     }
 
-    public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int start, int count, Ordering order, int month) throws SQLException {
+    public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int start, int count, Ordering order, int month, PositionAlgorithm positionAlgorithm) throws SQLException {
         Preconditions.checkArgument(start >= 0, "start must be >= 0, but is %s", start);
         Preconditions.checkArgument(count >= 0, "count must be >= 0, but is %s", count);
         return this.connection.runCommands(new SQLRunnable<List<InternalPlayerWithScore>>() {
@@ -940,12 +949,48 @@ public class StatisticsDatabase {
                 smt.setInt(4, count);
                 ResultSet results = smt.executeQuery();
                 ArrayList<InternalPlayerWithScore> rv = new ArrayList<>();
-                int position = 0;
+                int position = start + 1;
+                int totalPosition = start + 1;
+                boolean first = true;
+                int previousScore = 0;
                 while (results.next()) {
                     UUID player = UUID.fromString(results.getString("uuid"));
-                    position += 1;
                     int score = results.getInt("score");
+                    if (positionAlgorithm == PositionAlgorithm.TOTAL_ORDER) {
+                        position = totalPosition;
+                    } else if (positionAlgorithm == PositionAlgorithm.SKIP_POSITIONS_AFTER_DUPLICATES) {
+                        if (first) {
+                            PreparedStatement smt2 = sqlConnection.getOrCreateStatement(order == Ordering.DESCENDING ? getPositionMaxFromScore : getPositionMinFromScore);
+                            smt2.setInt(1, keyId);
+                            smt2.setInt(2, month);
+                            smt2.setInt(3, score);
+                            ResultSet results2 = smt2.executeQuery();
+                            if (results2.next()) {
+                                position = results2.getInt(1) + 1;
+                            }
+                        } else if (score != previousScore) {
+                            position = totalPosition;
+                        }
+                    } else if (positionAlgorithm == PositionAlgorithm.DO_NOT_SKIP_POSITIONS_AFTER_DUPLICATES) {
+                        if (first) {
+                            PreparedStatement smt2 = sqlConnection.getOrCreateStatement(order == Ordering.DESCENDING ? getPositionMaxFromDistinctScore : getPositionMinFromDistinctScore);
+                            smt2.setInt(1, keyId);
+                            smt2.setInt(2, month);
+                            smt2.setInt(3, score);
+                            ResultSet results2 = smt2.executeQuery();
+                            if (results2.next()) {
+                                position = results2.getInt(1) + 1;
+                            }
+                        } else if (score != previousScore) {
+                            position += 1;
+                        }
+                    } else {
+                        throw new RuntimeException("Unknown positionAlgorithm: " + positionAlgorithm);
+                    }
+                    first = false;
                     rv.add(new InternalPlayerWithScore(player, score, position));
+                    previousScore = score;
+                    totalPosition += 1;
                 }
                 results.close();
                 return rv;
