@@ -56,11 +56,21 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
 
     @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm) {
-        return getTop(start, count, order, timeFrame, positionAlgorithm, null);
+        return getTop(start, count, order, timeFrame, positionAlgorithm, (Callback<List<PlayerWithScore>>) null);
     }
 
     @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm, Callback<List<PlayerWithScore>> resultCallback) {
+        return getTop(start, count, order, timeFrame, positionAlgorithm, order, resultCallback);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm, Ordering positionOrder) {
+        return getTop(start, count, order, timeFrame, positionAlgorithm, positionOrder, (Callback<List<PlayerWithScore>>) null);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm, Ordering positionOrder, Callback<List<PlayerWithScore>> resultCallback) {
         boolean monthly = timeFrame == TimeFrame.MONTH;
         if (monthly && !isMonthlyStats()) {
             throw new IllegalArgumentException("There are no monthly stats for this key");
@@ -73,6 +83,7 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
             throw new IllegalArgumentException("count must be >= 0");
         }
         Preconditions.checkNotNull(order, "order");
+        Preconditions.checkNotNull(positionOrder, "positionOrder");
         Preconditions.checkNotNull(positionAlgorithm, "positionAlgorithm");
         int timekey = -1;
         if (monthly) {
@@ -88,7 +99,7 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
             public void process(StatisticsDatabase database) {
                 try {
                     List<PlayerWithScore> scoreList = new ArrayList<>();
-                    List<InternalPlayerWithScore> scoreInternal = database.getTop(StatisticKeyImplementation.this, start, count, order, timekey2, positionAlgorithm);
+                    List<InternalPlayerWithScore> scoreInternal = database.getTop(StatisticKeyImplementation.this, start, count, order, timekey2, positionAlgorithm, positionOrder);
                     for (InternalPlayerWithScore ip : scoreInternal) {
                         scoreList.add(new PlayerWithScore(stats.getStatistics(ip.getPlayer()), ip.getScore(), ip.getPosition()));
                     }

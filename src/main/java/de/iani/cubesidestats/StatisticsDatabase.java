@@ -48,18 +48,18 @@ public class StatisticsDatabase {
     private final String getScore;
     private final String deleteScore;
     private final String getThreeScores;
-    private final String getPositionMax;
-    private final String getPositionMin;
+    private final String getPositionDescending;
+    private final String getPositionAscending;
     private final String getPositionMaxTotalOrder;
     private final String getPositionMinTotalOrder;
 
     private final String getTopScoresDesc;
     private final String getTopScoresAsc;
     private final String getScoreEntries;
-    private final String getPositionMaxFromScore;
-    private final String getPositionMinFromScore;
-    private final String getPositionMaxFromDistinctScore;
-    private final String getPositionMinFromDistinctScore;
+    private final String getPositionDescendingFromScore;
+    private final String getPositionAscendingFromScore;
+    private final String getPositionDescendingFromDistinctScore;
+    private final String getPositionAscendingFromDistinctScore;
 
     private final String getAllAchivementKeys;
     private final String createAchivementKey;
@@ -118,8 +118,8 @@ public class StatisticsDatabase {
 
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
         getThreeScores = "SELECT score, month FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month IN (?,?,?)";
-        getPositionMax = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
-        getPositionMin = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MIN(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
+        getPositionDescending = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
+        getPositionAscending = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MIN(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
 
         getPositionMaxTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MAX(score) as score FROM "
                 + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t) and playerid > ? "
@@ -134,10 +134,10 @@ public class StatisticsDatabase {
         getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC, playerid DESC LIMIT ?, ?";
         getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC, playerid ASC LIMIT ?, ?";
         getScoreEntries = "SELECT COUNT(*) as counter FROM " + prefix + "_scores WHERE statsid = ? AND month = ?";
-        getPositionMaxFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
-        getPositionMinFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
-        getPositionMaxFromDistinctScore = "SELECT COUNT(DISTINCT score) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
-        getPositionMinFromDistinctScore = "SELECT COUNT(DISTINCT score) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
+        getPositionDescendingFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
+        getPositionAscendingFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
+        getPositionDescendingFromDistinctScore = "SELECT COUNT(DISTINCT score) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
+        getPositionAscendingFromDistinctScore = "SELECT COUNT(DISTINCT score) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
 
         getAllAchivementKeys = "SELECT id, name, properties FROM " + prefix + "_achivementkeys";
         createAchivementKey = "INSERT IGNORE INTO " + prefix + "_achivementkeys (name, properties) VALUE (?, ?)";
@@ -821,7 +821,7 @@ public class StatisticsDatabase {
             @Override
             public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionMax);
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionDescending);
                 smt.setInt(1, keyId);
                 smt.setInt(2, month);
                 smt.setInt(3, databaseId);
@@ -843,7 +843,7 @@ public class StatisticsDatabase {
             @Override
             public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
-                PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionMin);
+                PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionAscending);
                 smt.setInt(1, keyId);
                 smt.setInt(2, month);
                 smt.setInt(3, databaseId);
@@ -935,7 +935,7 @@ public class StatisticsDatabase {
         });
     }
 
-    public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int start, int count, Ordering order, int month, PositionAlgorithm positionAlgorithm) throws SQLException {
+    public List<InternalPlayerWithScore> getTop(StatisticKeyImplementation key, int start, int count, Ordering order, int month, PositionAlgorithm positionAlgorithm, Ordering positionOrder) throws SQLException {
         Preconditions.checkArgument(start >= 0, "start must be >= 0, but is %s", start);
         Preconditions.checkArgument(count >= 0, "count must be >= 0, but is %s", count);
         return this.connection.runCommands(new SQLRunnable<List<InternalPlayerWithScore>>() {
@@ -957,10 +957,25 @@ public class StatisticsDatabase {
                     UUID player = UUID.fromString(results.getString("uuid"));
                     int score = results.getInt("score");
                     if (positionAlgorithm == PositionAlgorithm.TOTAL_ORDER) {
+                        if (first && order != positionOrder) {
+                            // to get the total position of the first entry we have to get the total count of entries
+                            PreparedStatement smt2 = sqlConnection.getOrCreateStatement(getScoreEntries);
+                            smt2.setInt(1, keyId);
+                            smt2.setInt(2, month);
+                            ResultSet results2 = smt2.executeQuery();
+                            int totalEntries = 0;
+                            if (results2.next()) {
+                                totalEntries = results2.getInt(1);
+                            }
+                            results2.close();
+                            position = (totalEntries - start);
+                            totalPosition = position;
+                        }
                         position = totalPosition;
                     } else if (positionAlgorithm == PositionAlgorithm.SKIP_POSITIONS_AFTER_DUPLICATES) {
-                        if (first) {
-                            PreparedStatement smt2 = sqlConnection.getOrCreateStatement(order == Ordering.DESCENDING ? getPositionMaxFromScore : getPositionMinFromScore);
+                        if (first && order == positionOrder) {
+                            // if order != positionOrder we have to recalculate all positions later (start from the last entry)
+                            PreparedStatement smt2 = sqlConnection.getOrCreateStatement(positionOrder == Ordering.DESCENDING ? getPositionDescendingFromScore : getPositionAscendingFromScore);
                             smt2.setInt(1, keyId);
                             smt2.setInt(2, month);
                             smt2.setInt(3, score);
@@ -968,12 +983,13 @@ public class StatisticsDatabase {
                             if (results2.next()) {
                                 position = results2.getInt(1) + 1;
                             }
+                            results2.close();
                         } else if (score != previousScore) {
                             position = totalPosition;
                         }
                     } else if (positionAlgorithm == PositionAlgorithm.DO_NOT_SKIP_POSITIONS_AFTER_DUPLICATES) {
                         if (first) {
-                            PreparedStatement smt2 = sqlConnection.getOrCreateStatement(order == Ordering.DESCENDING ? getPositionMaxFromDistinctScore : getPositionMinFromDistinctScore);
+                            PreparedStatement smt2 = sqlConnection.getOrCreateStatement(positionOrder == Ordering.DESCENDING ? getPositionDescendingFromDistinctScore : getPositionAscendingFromDistinctScore);
                             smt2.setInt(1, keyId);
                             smt2.setInt(2, month);
                             smt2.setInt(3, score);
@@ -981,8 +997,9 @@ public class StatisticsDatabase {
                             if (results2.next()) {
                                 position = results2.getInt(1) + 1;
                             }
+                            results2.close();
                         } else if (score != previousScore) {
-                            position += 1;
+                            position += positionOrder == order ? 1 : -1;
                         }
                     } else {
                         throw new RuntimeException("Unknown positionAlgorithm: " + positionAlgorithm);
@@ -990,9 +1007,43 @@ public class StatisticsDatabase {
                     first = false;
                     rv.add(new InternalPlayerWithScore(player, score, position));
                     previousScore = score;
-                    totalPosition += 1;
+                    totalPosition += positionOrder == order ? 1 : -1;
                 }
                 results.close();
+                if (order != positionOrder && positionAlgorithm == PositionAlgorithm.SKIP_POSITIONS_AFTER_DUPLICATES && !rv.isEmpty()) {
+                    PreparedStatement smt2 = sqlConnection.getOrCreateStatement(getScoreEntries);
+                    smt2.setInt(1, keyId);
+                    smt2.setInt(2, month);
+                    ResultSet results2 = smt2.executeQuery();
+                    int totalEntries = 0;
+                    if (results2.next()) {
+                        totalEntries = results2.getInt(1);
+                    }
+                    results2.close();
+                    totalPosition = (totalEntries - start) - rv.size() + 1;
+
+                    InternalPlayerWithScore lastEntry = rv.get(rv.size() - 1);
+                    smt2 = sqlConnection.getOrCreateStatement(positionOrder == Ordering.DESCENDING ? getPositionDescendingFromScore : getPositionAscendingFromScore);
+                    smt2.setInt(1, keyId);
+                    smt2.setInt(2, month);
+                    smt2.setInt(3, lastEntry.getScore());
+                    results2 = smt2.executeQuery();
+                    if (results2.next()) {
+                        position = results2.getInt(1) + 1;
+                    }
+                    results2.close();
+                    previousScore = lastEntry.getScore();
+                    for (int i = rv.size() - 1; i >= 0; i--) {
+                        InternalPlayerWithScore oldEntry = rv.get(i);
+                        int score = oldEntry.getScore();
+                        if (previousScore != score) {
+                            position = totalPosition;
+                            previousScore = score;
+                        }
+                        rv.set(i, new InternalPlayerWithScore(oldEntry.getPlayer(), score, position));
+                        totalPosition += 1;
+                    }
+                }
                 return rv;
             }
         });
