@@ -424,11 +424,19 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
     public int getCurrentMonthKey() {
         calender.setTimeInMillis(System.currentTimeMillis());
-        return calender.get(Calendar.YEAR) * 100 + calender.get(Calendar.MONTH) + 1;
+        return getMonthKey(calender);
     }
 
     public int getCurrentDayKey() {
         calender.setTimeInMillis(System.currentTimeMillis());
+        return getDayKey(calender);
+    }
+
+    public static int getMonthKey(Calendar calender) {
+        return calender.get(Calendar.YEAR) * 100 + calender.get(Calendar.MONTH) + 1;
+    }
+
+    public static int getDayKey(Calendar calender) {
         return calender.get(Calendar.YEAR) * 1000 + calender.get(Calendar.DAY_OF_YEAR);
     }
 

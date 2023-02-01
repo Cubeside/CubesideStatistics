@@ -10,6 +10,7 @@ import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -45,8 +46,18 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
     }
 
     @Override
+    public Future<List<PlayerWithScore>> getTop(int count, TimeFrame timeFrame, Calendar time, Callback<List<PlayerWithScore>> resultCallback) {
+        return getTop(0, count, Ordering.DESCENDING, timeFrame, time, resultCallback);
+    }
+
+    @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame) {
         return getTop(start, count, order, timeFrame, (Callback<List<PlayerWithScore>>) null);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Calendar time) {
+        return getTop(start, count, order, timeFrame, time, (Callback<List<PlayerWithScore>>) null);
     }
 
     @Override
@@ -55,8 +66,18 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
     }
 
     @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Calendar time, Callback<List<PlayerWithScore>> resultCallback) {
+        return getTop(start, count, order, timeFrame, time, PositionAlgorithm.TOTAL_ORDER, resultCallback);
+    }
+
+    @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm) {
         return getTop(start, count, order, timeFrame, positionAlgorithm, (Callback<List<PlayerWithScore>>) null);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Calendar time, PositionAlgorithm positionAlgorithm) {
+        return getTop(start, count, order, timeFrame, time, positionAlgorithm, (Callback<List<PlayerWithScore>>) null);
     }
 
     @Override
@@ -65,18 +86,47 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
     }
 
     @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Calendar time, PositionAlgorithm positionAlgorithm, Callback<List<PlayerWithScore>> resultCallback) {
+        return getTop(start, count, order, timeFrame, time, positionAlgorithm, order, resultCallback);
+    }
+
+    @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm, Ordering positionOrder) {
         return getTop(start, count, order, timeFrame, positionAlgorithm, positionOrder, (Callback<List<PlayerWithScore>>) null);
     }
 
     @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Calendar time, PositionAlgorithm positionAlgorithm, Ordering positionOrder) {
+        return getTop(start, count, order, timeFrame, time, positionAlgorithm, positionOrder, (Callback<List<PlayerWithScore>>) null);
+    }
+
+    @Override
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, PositionAlgorithm positionAlgorithm, Ordering positionOrder, Callback<List<PlayerWithScore>> resultCallback) {
-        boolean monthly = timeFrame == TimeFrame.MONTH;
-        if (monthly && !isMonthlyStats()) {
+        int timekey = -1;
+        if (timeFrame == TimeFrame.MONTH) {
+            timekey = stats.getCurrentMonthKey();
+        } else if (timeFrame == TimeFrame.DAY) {
+            timekey = stats.getCurrentDayKey();
+        }
+        return getTop(start, count, order, timeFrame, timekey, positionAlgorithm, positionOrder, resultCallback);
+    }
+
+    @Override
+    public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Calendar time, PositionAlgorithm positionAlgorithm, Ordering positionOrder, Callback<List<PlayerWithScore>> resultCallback) {
+        int timekey = -1;
+        if (timeFrame == TimeFrame.MONTH) {
+            timekey = CubesideStatisticsImplementation.getMonthKey(time);
+        } else if (timeFrame == TimeFrame.DAY) {
+            timekey = CubesideStatisticsImplementation.getDayKey(time);
+        }
+        return getTop(start, count, order, timeFrame, timekey, positionAlgorithm, positionOrder, resultCallback);
+    }
+
+    private Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, int timeKey, PositionAlgorithm positionAlgorithm, Ordering positionOrder, Callback<List<PlayerWithScore>> resultCallback) {
+        if (timeFrame == TimeFrame.MONTH && !isMonthlyStats()) {
             throw new IllegalArgumentException("There are no monthly stats for this key");
         }
-        boolean daily = timeFrame == TimeFrame.DAY;
-        if (daily && !isDailyStats()) {
+        if (timeFrame == TimeFrame.DAY && !isDailyStats()) {
             throw new IllegalArgumentException("There are no daily stats for this key");
         }
         if (count < 0) {
@@ -85,13 +135,6 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
         Preconditions.checkNotNull(order, "order");
         Preconditions.checkNotNull(positionOrder, "positionOrder");
         Preconditions.checkNotNull(positionAlgorithm, "positionAlgorithm");
-        int timekey = -1;
-        if (monthly) {
-            timekey = stats.getCurrentMonthKey();
-        } else if (daily) {
-            timekey = stats.getCurrentDayKey();
-        }
-        final int timekey2 = timekey;
 
         CompletableFuture<List<PlayerWithScore>> future = new CompletableFuture<>();
         stats.getWorkerThread().addWork(new WorkEntry() {
@@ -99,7 +142,7 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
             public void process(StatisticsDatabase database) {
                 try {
                     List<PlayerWithScore> scoreList = new ArrayList<>();
-                    List<InternalPlayerWithScore> scoreInternal = database.getTop(StatisticKeyImplementation.this, start, count, order, timekey2, positionAlgorithm, positionOrder);
+                    List<InternalPlayerWithScore> scoreInternal = database.getTop(StatisticKeyImplementation.this, start, count, order, timeKey, positionAlgorithm, positionOrder);
                     for (InternalPlayerWithScore ip : scoreInternal) {
                         scoreList.add(new PlayerWithScore(stats.getStatistics(ip.getPlayer()), ip.getScore(), ip.getPosition()));
                     }
