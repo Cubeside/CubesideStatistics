@@ -103,7 +103,7 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     protected void callUpdatedEventInMainThread(StatisticKey key, StatsUpdateResultDTO result) {
         if (stats.getPlugin().isEnabled()) {
-            Bukkit.getScheduler().runTask(stats.getPlugin(), () -> new PlayerStatisticUpdatedEvent(playerId, key, result.getOldAlltime(), result.getNewAlltime(), result.getOldMonth(), result.getNewMonth(), result.getOldDay(), result.getNewDay()).callEvent());
+            CubesideStatistics.getPlugin().getScheduler().run(() -> new PlayerStatisticUpdatedEvent(playerId, key, result.getOldAlltime(), result.getNewAlltime(), result.getOldMonth(), result.getNewMonth(), result.getOldDay(), result.getNewDay()).callEvent());
         }
     }
 
