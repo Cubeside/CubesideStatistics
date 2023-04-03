@@ -5,7 +5,6 @@ import de.iani.cubesidestats.api.GamePlayerCount;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.logging.Level;
-import org.bukkit.scheduler.BukkitRunnable;
 
 public class GamePlayerCountImplementation implements GamePlayerCount {
 
@@ -90,21 +89,13 @@ public class GamePlayerCountImplementation implements GamePlayerCount {
 
     private void updateDatabasePlayers(String game, int newAmount) {
         if (stats.getPlugin().isEnabled()) {
-            stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                @Override
-                public void run() {
-                    stats.getWorkerThread().addWork(new WorkEntry() {
-                        @Override
-                        public void process(StatisticsDatabase database) {
-                            try {
-                                database.setGamePlayers(stats.getServerId(), game, newAmount);
-                            } catch (SQLException e) {
-                                stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set player amount " + game, e);
-                            }
-                        }
-                    });
+            stats.getPlugin().getScheduler().run(() -> stats.getWorkerThread().addWork(database -> {
+                try {
+                    database.setGamePlayers(stats.getServerId(), game, newAmount);
+                } catch (SQLException e) {
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set player amount " + game, e);
                 }
-            });
+            }));
         }
     }
 
@@ -127,18 +118,15 @@ public class GamePlayerCountImplementation implements GamePlayerCount {
                 }
                 HashMap<String, Integer> globalPlayersNew2 = globalPlayersNew;
                 if (stats.getPlugin().isEnabled()) {
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            if (globalPlayersNew2 != null) {
-                                globalPlayers = globalPlayersNew2;
-                            }
-                            lastUpdate = System.currentTimeMillis();
-                            if (callback != null) {
-                                callback.run();
-                            }
+                    CubesideStatistics.getPlugin().getScheduler().run(() -> {
+                        if (globalPlayersNew2 != null) {
+                            globalPlayers = globalPlayersNew2;
                         }
-                    }.runTask(stats.getPlugin());
+                        lastUpdate = System.currentTimeMillis();
+                        if (callback != null) {
+                            callback.run();
+                        }
+                    });
                 }
             }
         });

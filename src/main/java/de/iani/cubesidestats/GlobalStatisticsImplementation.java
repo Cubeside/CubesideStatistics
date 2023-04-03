@@ -79,12 +79,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
                 try {
                     boolean result = database.maxGlobalStatsValue((GlobalStatisticKeyImplementation) key, month, daykey, value);
                     if (updatedCallback != null && stats.getPlugin().isEnabled()) {
-                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                            @Override
-                            public void run() {
-                                updatedCallback.call(result);
-                            }
-                        });
+                        stats.getPlugin().getScheduler().run(() -> updatedCallback.call(result));
                     }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set global value", e);
@@ -111,12 +106,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
                 try {
                     boolean result = database.minGlobalStatsValue((GlobalStatisticKeyImplementation) key, month, daykey, value);
                     if (updatedCallback != null && stats.getPlugin().isEnabled()) {
-                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                            @Override
-                            public void run() {
-                                updatedCallback.call(result);
-                            }
-                        });
+                        stats.getPlugin().getScheduler().run(() -> updatedCallback.call(result));
                     }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set global value", e);
@@ -152,12 +142,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
             public void process(StatisticsDatabase database) {
                 Integer score = internalGetScoreInMonth(database, key, month);
                 if (score != null && stats.getPlugin().isEnabled()) {
-                    stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                        @Override
-                        public void run() {
-                            scoreCallback.call(score);
-                        }
-                    });
+                    stats.getPlugin().getScheduler().run(() -> scoreCallback.call(score));
                 }
             }
         });

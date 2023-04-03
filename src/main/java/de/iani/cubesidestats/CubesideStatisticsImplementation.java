@@ -17,6 +17,11 @@ import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.StatisticsQueryKey;
 import de.iani.cubesidestats.api.TimeFrame;
+import de.iani.cubesidestats.schedular.CancellableTask;
+import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
+import org.bukkit.plugin.Plugin;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -36,10 +41,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
-import org.bukkit.entity.Player;
-import org.bukkit.event.HandlerList;
-import org.bukkit.plugin.Plugin;
-import org.bukkit.scheduler.BukkitTask;
 
 public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private GlobalStatisticsImplementation globalStatistics;
@@ -50,7 +51,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private HashMap<UUID, PlayerStatisticsImplementation> onlinePlayers;
     private HashMap<UUID, TimestampedValue<PlayerStatisticsImplementation>> offlinePlayers;
     private StatisticsDatabase database;
-    private Plugin plugin;
+    private CubesideStatistics plugin;
     private WorkerThread workerThread;
     private int configSerial = -1;
     private final static int CONFIG_RELOAD_TICKS = 20 * 60 * 5;// 5 minutes (in ticks)
@@ -60,10 +61,10 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private final GamePlayerCountImplementation gamePlayerCount;
     private final Object playerListSync = new Object();
     private final Object keySync = new Object();
-    private final BukkitTask reloadConfigTimer;
+    private final CancellableTask reloadConfigTimer;
     private final PlayerListener listener;
 
-    public CubesideStatisticsImplementation(Plugin plugin, SQLConfig config) throws SQLException {
+    public CubesideStatisticsImplementation(CubesideStatistics plugin, SQLConfig config) throws SQLException {
         this.plugin = plugin;
         serverid = loadOrCreateServerId();
         database = new StatisticsDatabase(this, config);
@@ -76,12 +77,9 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         offlinePlayers = new HashMap<>();
 
         reloadConfigNow();
-        reloadConfigTimer = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, new Runnable() {
-            @Override
-            public void run() {
-                cleanupCache();
-                reloadConfig();
-            }
+        reloadConfigTimer = plugin.getScheduler().runGlobalAtFixedRate(() -> {
+            cleanupCache();
+            reloadConfig();
         }, CONFIG_RELOAD_TICKS, CONFIG_RELOAD_TICKS);
 
         plugin.getServer().getPluginManager().registerEvents(listener = new PlayerListener(this), plugin);
@@ -143,7 +141,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         return workerThread;
     }
 
-    public Plugin getPlugin() {
+    public CubesideStatistics getPlugin() {
         return plugin;
     }
 
@@ -213,7 +211,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
             if (plugin.getServer().isPrimaryThread()) {
                 mainTheadLogic.run();
             } else {
-                getPlugin().getServer().getScheduler().runTask(getPlugin(), mainTheadLogic);
+                getPlugin().getScheduler().run(mainTheadLogic);
             }
         } catch (SQLException e) {
             getPlugin().getLogger().log(Level.SEVERE, "Could not reload the config from the database", e);
@@ -606,12 +604,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                 }
                 future.complete(result);
                 if (callback != null && getPlugin().isEnabled()) {
-                    getPlugin().getServer().getScheduler().runTask(getPlugin(), new Runnable() {
-                        @Override
-                        public void run() {
-                            callback.call(result);
-                        }
-                    });
+                    getPlugin().getScheduler().run(() -> callback.call(result));
                 }
             }
         });

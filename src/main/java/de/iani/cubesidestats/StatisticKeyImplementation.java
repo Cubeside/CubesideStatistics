@@ -149,12 +149,7 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
                     List<PlayerWithScore> unmodifiableScoreList = Collections.unmodifiableList(scoreList);
                     future.complete(unmodifiableScoreList);
                     if (resultCallback != null && stats.getPlugin().isEnabled()) {
-                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
-                            @Override
-                            public void run() {
-                                resultCallback.call(unmodifiableScoreList);
-                            }
-                        });
+                        stats.getPlugin().getScheduler().run(() -> resultCallback.call(unmodifiableScoreList));
                     }
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get top scores for " + name, e);
