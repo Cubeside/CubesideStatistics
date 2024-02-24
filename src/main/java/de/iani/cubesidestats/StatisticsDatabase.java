@@ -110,10 +110,10 @@ public class StatisticsDatabase {
         createStatsKey = "INSERT IGNORE INTO " + prefix + "_stats (name, properties) VALUE (?, ?)";
         updateStatsKey = "UPDATE " + prefix + "_stats SET properties = ? WHERE id = ?";
 
-        changeScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = score + ?";
-        setScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = ?";
-        maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = GREATEST(score,?)";
-        minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score) VALUE (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = LEAST(score,?)";
+        changeScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score, updated) VALUE (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE updated = CASE WHEN 0 <> ? THEN ? ELSE updated END, score = score + ?";
+        setScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score, updated) VALUE (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE updated = CASE WHEN score <> ? THEN ? ELSE updated END, score = ?";
+        maxScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score, updated) VALUE (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE updated = CASE WHEN score < ? THEN ? ELSE updated END, score = GREATEST(score,?)";
+        minScore = "INSERT INTO " + prefix + "_scores (playerid, statsid, month, score, updated) VALUE (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE updated = CASE WHEN score > ? THEN ? ELSE updated END, score = LEAST(score,?)";
         deleteScore = "DELETE FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ?";
 
         getScore = "SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?";
@@ -121,18 +121,22 @@ public class StatisticsDatabase {
         getPositionDescending = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)";
         getPositionAscending = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MIN(score) as score FROM (SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)";
 
-        getPositionMaxTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MAX(score) as score FROM "
-                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t) and playerid > ? "
-                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > (SELECT MAX(score) as score FROM "
-                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 0 as score) as t)) as t2";
+        getPositionMaxTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = IFNULL("
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), -2147483647) "
+                + "AND (updated < IFNULL((SELECT updated FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), 9223372036854775808) "
+                + "OR (updated = IFNULL((SELECT updated FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), 9223372036854775808) AND playerid > ?)) "
+                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > IFNULL("
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), 0)) as t2";
 
-        getPositionMinTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = (SELECT MIN(score) as score FROM "
-                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t) and playerid < ? "
-                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < (SELECT MIN(score) as score FROM "
-                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ? UNION SELECT 2147483647 as score) as t)) as t2";
+        getPositionMinTotalOrder = "SELECT SUM(t2.ct) as count FROM (SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score = IFNULL("
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), 2147483647) "
+                + "AND (updated < IFNULL((SELECT updated FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), 9223372036854775808) "
+                + "OR (updated = IFNULL((SELECT updated FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), 9223372036854775808) AND playerid > ?)) "
+                + "UNION SELECT COUNT(*) as ct FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < IFNULL("
+                + "(SELECT score FROM " + prefix + "_scores WHERE playerid = ? AND statsid = ? AND month = ?), 2147483647)) as t2";
 
-        getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC, playerid DESC LIMIT ?, ?";
-        getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC, playerid ASC LIMIT ?, ?";
+        getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC, updated ASC, playerid DESC LIMIT ?, ?";
+        getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC, updated ASC, playerid DESC LIMIT ?, ?";
         getScoreEntries = "SELECT COUNT(*) as counter FROM " + prefix + "_scores WHERE statsid = ? AND month = ?";
         getPositionDescendingFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
         getPositionAscendingFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
@@ -203,8 +207,14 @@ public class StatisticsDatabase {
                             " `statsid` int(11) NOT NULL," + //
                             " `month` int(11) NOT NULL," + //
                             " `score` int(11) NOT NULL," + //
-                            " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`,`playerid`)" + //
+                            " `updated` BIGINT(20) NOT NULL DEFAULT 0," + //
+                            " PRIMARY KEY (`playerid`,`month`,`statsid`), KEY (`statsid`,`month`,`score`,`updated`)" + //
                             " ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+                } else {
+                    if (!sqlConnection.hasColumn(prefix + "_scores", "updated")) {
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_scores` ADD `updated` BIGINT(20) NOT NULL DEFAULT '0' AFTER `score`");
+                        smt.executeUpdate("ALTER TABLE `" + prefix + "_scores` DROP INDEX `statsid`, ADD INDEX `statsid` (`statsid`, `month`, `score`, `updated`, `playerid`");
+                    }
                 }
                 if (!sqlConnection.hasTable(prefix + "_globalstats")) {
                     smt.executeUpdate("CREATE TABLE IF NOT EXISTS `" + prefix + "_globalstats` (" + //
@@ -674,12 +684,16 @@ public class StatisticsDatabase {
             public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day, 0);
                 int keyId = key.getId();
+                long time = System.currentTimeMillis();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(changeScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
                 smt.setInt(4, amount);
-                smt.setInt(5, amount);
+                smt.setLong(5, time);
+                smt.setInt(6, amount);
+                smt.setLong(7, time);
+                smt.setInt(8, amount);
                 smt.executeUpdate();
                 if (month >= 0 && key.isMonthlyStats()) {
                     smt.setInt(3, month);
@@ -705,13 +719,16 @@ public class StatisticsDatabase {
             public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day);
                 int keyId = key.getId();
-
+                long time = System.currentTimeMillis();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(setScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
                 smt.setInt(4, value);
-                smt.setInt(5, value);
+                smt.setLong(5, time);
+                smt.setInt(6, value);
+                smt.setLong(7, time);
+                smt.setInt(8, value);
                 smt.executeUpdate();
                 if (month >= 0 && key.isMonthlyStats()) {
                     smt.setInt(3, month);
@@ -733,13 +750,16 @@ public class StatisticsDatabase {
             public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day);
                 int keyId = key.getId();
-
+                long time = System.currentTimeMillis();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(maxScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
                 smt.setInt(4, value);
-                smt.setInt(5, value);
+                smt.setLong(5, time);
+                smt.setInt(6, value);
+                smt.setLong(7, time);
+                smt.setInt(8, value);
                 smt.executeUpdate();
                 if (month >= 0 && key.isMonthlyStats()) {
                     smt.setInt(3, month);
@@ -760,14 +780,17 @@ public class StatisticsDatabase {
             @Override
             public StatsUpdateResultDTO execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 StatsUpdateResultDTO updateResult = internalGetOldScores(sqlConnection, databaseId, key, month, day);
-
                 int keyId = key.getId();
+                long time = System.currentTimeMillis();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(minScore);
                 smt.setInt(1, databaseId);
                 smt.setInt(2, keyId);
                 smt.setInt(3, -1);
                 smt.setInt(4, value);
-                smt.setInt(5, value);
+                smt.setLong(5, time);
+                smt.setInt(6, value);
+                smt.setLong(7, time);
+                smt.setInt(8, value);
                 smt.executeUpdate();
                 if (month >= 0 && key.isMonthlyStats()) {
                     smt.setInt(3, month);
@@ -866,23 +889,37 @@ public class StatisticsDatabase {
             public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionMaxTotalOrder);
+                // zeile 1
                 smt.setInt(1, keyId);
                 smt.setInt(2, month);
+                // zeile 2
                 smt.setInt(3, databaseId);
                 smt.setInt(4, keyId);
                 smt.setInt(5, month);
+                // zeile 3
                 smt.setInt(6, databaseId);
                 smt.setInt(7, keyId);
                 smt.setInt(8, month);
+                // zeile 4
                 smt.setInt(9, databaseId);
                 smt.setInt(10, keyId);
                 smt.setInt(11, month);
+                smt.setInt(12, databaseId);
+                // zeile 5
+                smt.setInt(13, keyId);
+                smt.setInt(14, month);
+                // zeile 6
+                smt.setInt(15, databaseId);
+                smt.setInt(16, keyId);
+                smt.setInt(17, month);
+
                 ResultSet results = smt.executeQuery();
                 Integer rv = null;
                 if (results.next()) {
                     rv = results.getInt("count");
                 }
                 results.close();
+                System.out.println("getPositionMaxTotalOrder (" + databaseId + ") -> " + ((rv == null ? 0 : rv) + 1));
                 return (rv == null ? 0 : rv) + 1;
             }
         });
@@ -894,23 +931,37 @@ public class StatisticsDatabase {
             public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
                 int keyId = key.getId();
                 PreparedStatement smt = sqlConnection.getOrCreateStatement(getPositionMinTotalOrder);
+                // zeile 1
                 smt.setInt(1, keyId);
                 smt.setInt(2, month);
+                // zeile 2
                 smt.setInt(3, databaseId);
                 smt.setInt(4, keyId);
                 smt.setInt(5, month);
+                // zeile 3
                 smt.setInt(6, databaseId);
                 smt.setInt(7, keyId);
                 smt.setInt(8, month);
+                // zeile 4
                 smt.setInt(9, databaseId);
                 smt.setInt(10, keyId);
                 smt.setInt(11, month);
+                smt.setInt(12, databaseId);
+                // zeile 5
+                smt.setInt(13, keyId);
+                smt.setInt(14, month);
+                // zeile 6
+                smt.setInt(15, databaseId);
+                smt.setInt(16, keyId);
+                smt.setInt(17, month);
+
                 ResultSet results = smt.executeQuery();
                 Integer rv = null;
                 if (results.next()) {
                     rv = results.getInt("count");
                 }
                 results.close();
+                System.out.println("getPositionMinTotalOrder (" + databaseId + ") -> " + ((rv == null ? 0 : rv) + 1));
                 return (rv == null ? 0 : rv) + 1;
             }
         });
