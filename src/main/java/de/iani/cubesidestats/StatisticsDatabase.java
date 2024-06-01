@@ -919,7 +919,7 @@ public class StatisticsDatabase {
                     rv = results.getInt("count");
                 }
                 results.close();
-                System.out.println("getPositionMaxTotalOrder (" + databaseId + ") -> " + ((rv == null ? 0 : rv) + 1));
+                // System.out.println("getPositionMaxTotalOrder (" + databaseId + ") -> " + ((rv == null ? 0 : rv) + 1));
                 return (rv == null ? 0 : rv) + 1;
             }
         });
@@ -961,7 +961,7 @@ public class StatisticsDatabase {
                     rv = results.getInt("count");
                 }
                 results.close();
-                System.out.println("getPositionMinTotalOrder (" + databaseId + ") -> " + ((rv == null ? 0 : rv) + 1));
+                // System.out.println("getPositionMinTotalOrder (" + databaseId + ") -> " + ((rv == null ? 0 : rv) + 1));
                 return (rv == null ? 0 : rv) + 1;
             }
         });
