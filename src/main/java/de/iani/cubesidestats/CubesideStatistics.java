@@ -1,6 +1,8 @@
 package de.iani.cubesidestats;
 
 import de.iani.cubesidestats.api.CubesideStatisticsAPI;
+import de.iani.cubesidestats.api.conditions.HasSettingCondition;
+import de.iani.cubesideutils.serialization.StringSerialization;
 import java.sql.SQLException;
 import java.util.logging.Level;
 import org.bukkit.plugin.ServicePriority;
@@ -8,6 +10,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class CubesideStatistics extends JavaPlugin {
     private CubesideStatisticsImplementation impl;
+
+    @Override
+    public void onLoad() {
+        StringSerialization.register(HasSettingCondition.SERIALIZATION_TYPE, HasSettingCondition::deserialize);
+    }
 
     @Override
     public void onEnable() {
