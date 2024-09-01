@@ -11,7 +11,7 @@ public class SQLConfig {
 
     private String database = "CHANGETHIS";
 
-    private String tableprefix = "cubeside_settings";
+    private String tableprefix = "cubeside_statistics";
 
     private boolean checkTables;
 

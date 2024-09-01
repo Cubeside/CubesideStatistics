@@ -62,8 +62,10 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private final Object keySync = new Object();
     private final BukkitTask reloadConfigTimer;
     private final PlayerListener listener;
+    private final boolean internal;
 
     public CubesideStatisticsImplementation(Plugin plugin, SQLConfig config) throws SQLException {
+        internal = plugin instanceof CubesideStatistics;
         this.plugin = plugin;
         serverid = loadOrCreateServerId();
         database = new StatisticsDatabase(this, config);
@@ -83,8 +85,11 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                 reloadConfig();
             }
         }, CONFIG_RELOAD_TICKS, CONFIG_RELOAD_TICKS);
-
-        plugin.getServer().getPluginManager().registerEvents(listener = new PlayerListener(this), plugin);
+        if (internal) {
+            plugin.getServer().getPluginManager().registerEvents(listener = new PlayerListener(this), plugin);
+        } else {
+            listener = null;
+        }
 
         workerThread = new WorkerThread();
         workerThread.start();
@@ -616,5 +621,9 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
             }
         });
         return future;
+    }
+
+    public boolean isInternal() {
+        return internal;
     }
 }

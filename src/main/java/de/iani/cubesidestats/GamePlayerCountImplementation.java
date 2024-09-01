@@ -45,6 +45,9 @@ public class GamePlayerCountImplementation implements GamePlayerCount {
     }
 
     public void clearLocalPlayers() {
+        if (!stats.isInternal()) {
+            return;
+        }
         localPlayers.clear();
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override
@@ -89,7 +92,7 @@ public class GamePlayerCountImplementation implements GamePlayerCount {
     }
 
     private void updateDatabasePlayers(String game, int newAmount) {
-        if (stats.getPlugin().isEnabled()) {
+        if (stats.getPlugin().isEnabled() && stats.isInternal()) {
             stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
                 @Override
                 public void run() {
