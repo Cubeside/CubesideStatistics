@@ -25,7 +25,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
 
     @Override
     public void increaseValue(GlobalStatisticKey key, int amount) {
-        if (!(key instanceof StatisticKeyImplementation)) {
+        if (!(key instanceof GlobalStatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
         final int month = stats.getCurrentMonthKey();
@@ -44,7 +44,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
 
     @Override
     public void setValue(GlobalStatisticKey key, int value) {
-        if (!(key instanceof StatisticKeyImplementation)) {
+        if (!(key instanceof GlobalStatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
         final int month = stats.getCurrentMonthKey();
@@ -68,7 +68,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
 
     @Override
     public void maxValue(GlobalStatisticKey key, int value, Callback<Boolean> updatedCallback) {
-        if (!(key instanceof StatisticKeyImplementation)) {
+        if (!(key instanceof GlobalStatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
         final int month = stats.getCurrentMonthKey();
@@ -100,7 +100,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
 
     @Override
     public void minValue(GlobalStatisticKey key, int value, Callback<Boolean> updatedCallback) {
-        if (!(key instanceof StatisticKeyImplementation)) {
+        if (!(key instanceof GlobalStatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
         final int month = stats.getCurrentMonthKey();
@@ -141,7 +141,7 @@ public class GlobalStatisticsImplementation implements GlobalStatistics {
     }
 
     private void getScoreInMonth(GlobalStatisticKey key, int month, Callback<Integer> scoreCallback) {
-        if (!(key instanceof StatisticKeyImplementation)) {
+        if (!(key instanceof GlobalStatisticKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
         if (scoreCallback == null) {
