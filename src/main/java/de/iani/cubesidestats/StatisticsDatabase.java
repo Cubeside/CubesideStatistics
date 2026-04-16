@@ -56,6 +56,8 @@ public class StatisticsDatabase {
     private final String getTopScoresDesc;
     private final String getTopScoresAsc;
     private final String getScoreEntries;
+    private final String getTransformOverflowScores;
+    private final String transformScores;
     private final String getPositionDescendingFromScore;
     private final String getPositionAscendingFromScore;
     private final String getPositionDescendingFromDistinctScore;
@@ -138,6 +140,8 @@ public class StatisticsDatabase {
         getTopScoresDesc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score DESC, updated ASC, playerid DESC LIMIT ?, ?";
         getTopScoresAsc = "SELECT uuid, score FROM " + prefix + "_scores sc LEFT JOIN " + prefix + "_players st ON (sc.playerid = st.id) WHERE statsid = ? AND month = ? ORDER BY score ASC, updated ASC, playerid DESC LIMIT ?, ?";
         getScoreEntries = "SELECT COUNT(*) as counter FROM " + prefix + "_scores WHERE statsid = ? AND month = ?";
+        getTransformOverflowScores = "SELECT COUNT(*) as counter FROM " + prefix + "_scores WHERE statsid = ? AND score > ?";
+        transformScores = "UPDATE " + prefix + "_scores SET score = score * ? + ? WHERE statsid = ? AND score > 0";
         getPositionDescendingFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
         getPositionAscendingFromScore = "SELECT COUNT(*) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score < ?";
         getPositionDescendingFromDistinctScore = "SELECT COUNT(DISTINCT score) as count FROM " + prefix + "_scores WHERE statsid = ? AND month = ? AND score > ?";
@@ -982,6 +986,35 @@ public class StatisticsDatabase {
                 }
                 results.close();
                 return result;
+            }
+        });
+    }
+
+    public int transformAllScores(StatisticKeyImplementation key, int multiplier, int addend) throws SQLException {
+        return this.connection.runCommands(new SQLRunnable<Integer>() {
+            @Override
+            public Integer execute(Connection connection, SQLConnection sqlConnection) throws SQLException {
+                int keyId = key.getId();
+                int maxSafeScore = (Integer.MAX_VALUE - addend) / multiplier;
+
+                PreparedStatement overflowCheck = sqlConnection.getOrCreateStatement(getTransformOverflowScores);
+                overflowCheck.setInt(1, keyId);
+                overflowCheck.setInt(2, maxSafeScore);
+                ResultSet overflowResult = overflowCheck.executeQuery();
+                int overflowingScores = 0;
+                if (overflowResult.next()) {
+                    overflowingScores = overflowResult.getInt("counter");
+                }
+                overflowResult.close();
+                if (overflowingScores > 0) {
+                    throw new SQLException("Could not transform scores for " + key.getName() + ": " + overflowingScores + " entries would overflow int");
+                }
+
+                PreparedStatement transform = sqlConnection.getOrCreateStatement(transformScores);
+                transform.setInt(1, multiplier);
+                transform.setInt(2, addend);
+                transform.setInt(3, keyId);
+                return transform.executeUpdate();
             }
         });
     }

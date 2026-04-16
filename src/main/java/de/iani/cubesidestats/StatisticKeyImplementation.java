@@ -196,4 +196,45 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
         });
         return future;
     }
+
+    @Override
+    public Future<Integer> transformAllScores(int multiplier, int addend) {
+        return transformAllScores(multiplier, addend, null);
+    }
+
+    @Override
+    public Future<Integer> transformAllScores(int multiplier, int addend, Callback<Integer> resultCallback) {
+        if (multiplier <= 0) {
+            throw new IllegalArgumentException("multiplier must be > 0");
+        }
+        if (addend < 0) {
+            throw new IllegalArgumentException("addend must be >= 0");
+        }
+        if (addend > Integer.MAX_VALUE / multiplier) {
+            throw new IllegalArgumentException("multiplier and addend leave no safe positive score range");
+        }
+
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                try {
+                    int transformedScores = database.transformAllScores(StatisticKeyImplementation.this, multiplier, addend);
+                    future.complete(transformedScores);
+                    if (resultCallback != null && stats.getPlugin().isEnabled()) {
+                        stats.getPlugin().getServer().getScheduler().runTask(stats.getPlugin(), new Runnable() {
+                            @Override
+                            public void run() {
+                                resultCallback.call(transformedScores);
+                            }
+                        });
+                    }
+                } catch (SQLException e) {
+                    future.completeExceptionally(e);
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not transform scores for " + name, e);
+                }
+            }
+        });
+        return future;
+    }
 }
