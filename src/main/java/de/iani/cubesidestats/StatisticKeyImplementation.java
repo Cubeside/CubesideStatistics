@@ -166,6 +166,11 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
 
     @Override
     public Future<Integer> getEntriesCount(TimeFrame timeFrame) {
+        return getEntriesCount(timeFrame, null);
+    }
+
+    @Override
+    public Future<Integer> getEntriesCount(TimeFrame timeFrame, Calendar time) {
         boolean monthly = timeFrame == TimeFrame.MONTH;
         if (monthly && !isMonthlyStats()) {
             throw new IllegalArgumentException("There are no monthly stats for this key");
@@ -176,9 +181,9 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
         }
         int timekey = -1;
         if (monthly) {
-            timekey = stats.getCurrentMonthKey();
+            timekey = time == null ? stats.getCurrentMonthKey() : CubesideStatisticsImplementation.getMonthKey(time);
         } else if (daily) {
-            timekey = stats.getCurrentDayKey();
+            timekey = time == null ? stats.getCurrentDayKey() : CubesideStatisticsImplementation.getDayKey(time);
         }
         final int timekey2 = timekey;
 

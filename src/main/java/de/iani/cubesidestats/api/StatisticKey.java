@@ -49,6 +49,10 @@ public interface StatisticKey {
 
     public Future<Integer> getEntriesCount(TimeFrame timeFrame);
 
+    public default Future<Integer> getEntriesCount(TimeFrame timeFrame, Calendar time) {
+        return getEntriesCount(timeFrame);
+    }
+
     public Future<Integer> transformAllScores(int multiplier, int addend);
 
     public Future<Integer> transformAllScores(int multiplier, int addend, Callback<Integer> resultCallback);

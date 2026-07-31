@@ -554,9 +554,11 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                         if (playerQueryKey.getPlayer() instanceof PlayerStatisticsImplementation) {
                             int timeKey = -1;
                             if (playerQueryKey.getTimeFrame() == TimeFrame.MONTH) {
-                                timeKey = currentMonthKey;
+                                Calendar time = playerQueryKey.getTime();
+                                timeKey = time == null ? currentMonthKey : getMonthKey(time);
                             } else if (playerQueryKey.getTimeFrame() == TimeFrame.DAY) {
-                                timeKey = currentDayKey;
+                                Calendar time = playerQueryKey.getTime();
+                                timeKey = time == null ? currentDayKey : getDayKey(time);
                             }
                             PlayerStatisticsImplementation player = (PlayerStatisticsImplementation) playerQueryKey.getPlayer();
                             if (playerQueryKey.getType() == QueryType.POSITION_MAX) {
