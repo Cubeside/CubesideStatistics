@@ -17,6 +17,7 @@ import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.StatisticsQueryKey;
 import de.iani.cubesidestats.api.TimeFrame;
+import de.iani.cubesidestats.api.event.PlayerSettingsLoadedEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -36,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
+import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.Plugin;
@@ -47,7 +49,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     private ConcurrentHashMap<String, StatisticKeyImplementation> statisticKeys;
     private ConcurrentHashMap<String, AchivementKeyImplementation> achivementKeys;
     private ConcurrentHashMap<String, SettingKeyImplementation> settingKeys;
-    private HashMap<UUID, PlayerStatisticsImplementation> onlinePlayers;
+    private HashMap<UUID, OnlinePlayerStatistics> onlinePlayers;
     private HashMap<UUID, TimestampedValue<PlayerStatisticsImplementation>> offlinePlayers;
     private StatisticsDatabase database;
     private Plugin plugin;
@@ -78,6 +80,9 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         offlinePlayers = new HashMap<>();
 
         reloadConfigNow();
+        workerThread = new WorkerThread();
+        workerThread.start();
+
         reloadConfigTimer = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, new Runnable() {
             @Override
             public void run() {
@@ -90,9 +95,6 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         } else {
             listener = null;
         }
-
-        workerThread = new WorkerThread();
-        workerThread.start();
 
         gamePlayerCount = new GamePlayerCountImplementation(this);
         globalStatistics = new GlobalStatisticsImplementation(this);
@@ -233,15 +235,15 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
     @Override
     public PlayerStatistics getStatistics(UUID owner) {
         synchronized (playerListSync) {
-            PlayerStatisticsImplementation stats = onlinePlayers.get(owner);
-            if (stats != null) {
-                return stats;
+            OnlinePlayerStatistics onlineStats = onlinePlayers.get(owner);
+            if (onlineStats != null) {
+                return onlineStats.statistics();
             }
             TimestampedValue<PlayerStatisticsImplementation> timestampedStats = offlinePlayers.get(owner);
             if (timestampedStats != null) {
                 return timestampedStats.get();
             }
-            stats = new PlayerStatisticsImplementation(this, owner, null);
+            PlayerStatisticsImplementation stats = new PlayerStatisticsImplementation(this, owner, null);
             offlinePlayers.put(owner, new TimestampedValue<>(stats));
             return stats;
         }
@@ -254,7 +256,7 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                 Iterator<TimestampedValue<PlayerStatisticsImplementation>> it = offlinePlayers.values().iterator();
                 while (it.hasNext()) {
                     TimestampedValue<PlayerStatisticsImplementation> current = it.next();
-                    if (current.getTimestamp() < minTimestamp) {
+                    if (current.getTimestamp() < minTimestamp && !current.peek().isSettingsLoadInProgress()) {
                         it.remove();
                     }
                 }
@@ -334,20 +336,73 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
         return Collections.unmodifiableCollection(statisticKeys.values());
     }
 
-    public void playerJoined(Player player) {
+    public CompletableFuture<PlayerStatisticsImplementation> preparePlayerSettings(UUID playerId) {
+        PlayerStatisticsImplementation playerStatistics;
         synchronized (playerListSync) {
-            TimestampedValue<PlayerStatisticsImplementation> old = offlinePlayers.remove(player.getUniqueId());
-            onlinePlayers.put(player.getUniqueId(), old == null ? new PlayerStatisticsImplementation(this, player.getUniqueId(), settingKeys.values()) : old.get().reloadSettingsAsync(settingKeys.values()));
+            OnlinePlayerStatistics onlineStatistics = onlinePlayers.get(playerId);
+            if (onlineStatistics != null) {
+                playerStatistics = onlineStatistics.statistics();
+                if (playerStatistics.areSettingsLoaded()) {
+                    return CompletableFuture.completedFuture(playerStatistics);
+                }
+            } else {
+                TimestampedValue<PlayerStatisticsImplementation> cachedStatistics = offlinePlayers.get(playerId);
+                if (cachedStatistics == null) {
+                    playerStatistics = new PlayerStatisticsImplementation(this, playerId, null);
+                    offlinePlayers.put(playerId, new TimestampedValue<>(playerStatistics));
+                } else {
+                    playerStatistics = cachedStatistics.get();
+                }
+            }
         }
+
+        Collection<SettingKeyImplementation> currentSettingKeys = new ArrayList<>(settingKeys.values());
+        PlayerStatisticsImplementation result = playerStatistics;
+        return playerStatistics.reloadSettingsFuture(currentSettingKeys).thenApply(ignored -> result);
+    }
+
+    public void playerJoined(Player player) {
+        PlayerStatisticsImplementation playerStatistics;
+        boolean settingsAvailable;
+        synchronized (playerListSync) {
+            UUID playerId = player.getUniqueId();
+            OnlinePlayerStatistics currentOnlineStatistics = onlinePlayers.get(playerId);
+            if (currentOnlineStatistics != null) {
+                playerStatistics = currentOnlineStatistics.statistics();
+            } else {
+                TimestampedValue<PlayerStatisticsImplementation> cachedStatistics = offlinePlayers.remove(playerId);
+                playerStatistics = cachedStatistics == null ? null : cachedStatistics.get();
+            }
+
+            settingsAvailable = playerStatistics != null && playerStatistics.areSettingsLoaded();
+            if (settingsAvailable) {
+                onlinePlayers.put(playerId, new OnlinePlayerStatistics(player, playerStatistics));
+            } else if (playerStatistics != null && currentOnlineStatistics == null) {
+                offlinePlayers.put(playerId, new TimestampedValue<>(playerStatistics));
+            }
+        }
+
+        if (!settingsAvailable) {
+            plugin.getLogger().severe("Player " + player.getUniqueId() + " joined without loaded settings");
+            player.kick(Component.text("Deine Spielerdaten konnten nicht geladen werden. Bitte versuche es später erneut."));
+            return;
+        }
+        plugin.getServer().getPluginManager().callEvent(new PlayerSettingsLoadedEvent(player));
     }
 
     public void playerDisconnected(Player player) {
         synchronized (playerListSync) {
-            PlayerStatisticsImplementation old = onlinePlayers.remove(player.getUniqueId());
-            if (old != null) {
-                offlinePlayers.put(player.getUniqueId(), new TimestampedValue<>(old));
+            UUID playerId = player.getUniqueId();
+            OnlinePlayerStatistics onlineStatistics = onlinePlayers.get(playerId);
+            if (onlineStatistics == null || onlineStatistics.player() != player) {
+                return;
             }
+            onlinePlayers.remove(playerId);
+            offlinePlayers.put(playerId, new TimestampedValue<>(onlineStatistics.statistics()));
         }
+    }
+
+    private record OnlinePlayerStatistics(Player player, PlayerStatisticsImplementation statistics) {
     }
 
     public class WorkerThread extends Thread {
@@ -371,6 +426,28 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
                 work.addLast(e);
                 work.notify();
             }
+        }
+
+        public <T> CompletableFuture<T> submitWork(FutureWorkEntry<T> e) {
+            CompletableFuture<T> future = new CompletableFuture<>();
+            synchronized (work) {
+                if (stopping) {
+                    future.completeExceptionally(new IllegalStateException("Statistics worker is stopping"));
+                    return future;
+                }
+                work.addLast(new WorkEntry() {
+                    @Override
+                    public void process(StatisticsDatabase database) {
+                        try {
+                            future.complete(e.process(database));
+                        } catch (Throwable error) {
+                            future.completeExceptionally(error);
+                        }
+                    }
+                });
+                work.notify();
+            }
+            return future;
         }
 
         public void shutdown() {
@@ -425,6 +502,11 @@ public class CubesideStatisticsImplementation implements CubesideStatisticsAPI {
 
     public static interface WorkEntry {
         void process(StatisticsDatabase database);
+    }
+
+    @FunctionalInterface
+    public static interface FutureWorkEntry<T> {
+        T process(StatisticsDatabase database) throws Exception;
     }
 
     public int getCurrentMonthKey() {

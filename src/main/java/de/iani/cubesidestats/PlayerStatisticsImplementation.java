@@ -8,26 +8,27 @@ import de.iani.cubesidestats.api.PlayerStatistics;
 import de.iani.cubesidestats.api.SettingKey;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
-import de.iani.cubesidestats.api.event.PlayerSettingsLoadedEvent;
 import de.iani.cubesidestats.api.event.PlayerStatisticUpdatedEvent;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map.Entry;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 public class PlayerStatisticsImplementation implements PlayerStatistics {
-    private CubesideStatisticsImplementation stats;
+    private final CubesideStatisticsImplementation stats;
     private final UUID playerId;
-    private int databaseId;
-    private HashSet<SettingKeyImplementation> doNotLoadSettings;
+    private volatile int databaseId;
+    private final CompletableFuture<Void> databaseIdLoaded;
+    private final Object settingsSync = new Object();
+    private HashSet<SettingKeyImplementation> settingsChangedDuringLoad;
     private final HashMap<SettingKeyImplementation, Integer> settings;
-    private boolean settingsLoaded;
+    private volatile boolean settingsLoaded;
+    private CompletableFuture<Void> settingsLoadFuture;
 
     public PlayerStatisticsImplementation(CubesideStatisticsImplementation stats, UUID player, Collection<SettingKeyImplementation> settingKeys) {
         if (player == null) {
@@ -41,59 +42,87 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         databaseId = -1;
         this.settingsLoaded = false;
         this.settings = new HashMap<>();
-        stats.getWorkerThread().addWork(new WorkEntry() {
-            @Override
-            public void process(StatisticsDatabase database) {
-                try {
-                    databaseId = database.getOrCreatePlayerId(player);
-                    if (settingKeys != null) {
-                        internalLoadSettings(settingKeys, database);
-                    }
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not load database id or settings for " + playerId, e);
-                }
+        databaseIdLoaded = stats.getWorkerThread().submitWork(database -> {
+            databaseId = database.getOrCreatePlayerId(player);
+            return null;
+        });
+        databaseIdLoaded.whenComplete((ignored, error) -> {
+            if (error != null) {
+                stats.getPlugin().getLogger().log(Level.SEVERE, "Could not load database id for " + playerId, unwrapCompletionException(error));
             }
         });
+        if (settingKeys != null) {
+            reloadSettingsAsync(settingKeys);
+        }
     }
 
     public PlayerStatisticsImplementation reloadSettingsAsync(Collection<SettingKeyImplementation> settingKeys) {
-        this.settings.clear();
-        doNotLoadSettings = null;
-        settingsLoaded = false;
-        stats.getWorkerThread().addWork(new WorkEntry() {
-            @Override
-            public void process(StatisticsDatabase database) {
-                try {
-                    internalLoadSettings(settingKeys, database);
-                } catch (SQLException e) {
-                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not load settings for " + playerId, e);
-                }
-            }
-        });
+        reloadSettingsFuture(settingKeys);
         return this;
     }
 
-    protected void internalLoadSettings(Collection<SettingKeyImplementation> settingKeys, StatisticsDatabase database) throws SQLException {
-        if (stats.getPlugin().isEnabled()) {
-            HashMap<SettingKeyImplementation, Integer> settingsTemp = database.getSettingValues(databaseId, settingKeys);
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    for (Entry<SettingKeyImplementation, Integer> e : settingsTemp.entrySet()) {
-                        SettingKeyImplementation key = e.getKey();
-                        if (doNotLoadSettings == null || !doNotLoadSettings.contains(key)) {
-                            settings.put(key, e.getValue());
-                        }
+    CompletableFuture<Void> reloadSettingsFuture(Collection<SettingKeyImplementation> settingKeys) {
+        Collection<SettingKeyImplementation> settingKeysSnapshot = new ArrayList<>(settingKeys);
+        synchronized (settingsSync) {
+            if (settingsLoadFuture != null && !settingsLoadFuture.isDone()) {
+                return settingsLoadFuture;
+            }
+
+            HashSet<SettingKeyImplementation> changedSettings = new HashSet<>();
+            settingsChangedDuringLoad = changedSettings;
+            CompletableFuture<Void> future = stats.getWorkerThread().submitWork(database -> {
+                if (!stats.getPlugin().isEnabled()) {
+                    throw new IllegalStateException("Statistics plugin is disabled");
+                }
+                databaseIdLoaded.join();
+                if (databaseId < 0) {
+                    throw new SQLException("Invalid database id for " + playerId);
+                }
+
+                HashMap<SettingKeyImplementation, Integer> loadedSettings = database.getSettingValues(databaseId, settingKeysSnapshot);
+                if (!stats.getPlugin().isEnabled()) {
+                    throw new IllegalStateException("Statistics plugin was disabled while loading settings");
+                }
+                synchronized (settingsSync) {
+                    for (SettingKeyImplementation changedSetting : changedSettings) {
+                        loadedSettings.put(changedSetting, settings.get(changedSetting));
                     }
-                    doNotLoadSettings = null;
+                    settings.clear();
+                    settings.putAll(loadedSettings);
                     settingsLoaded = true;
-                    Player owner = stats.getPlugin().getServer().getPlayer(playerId);
-                    if (owner != null) {
-                        stats.getPlugin().getServer().getPluginManager().callEvent(new PlayerSettingsLoadedEvent(owner));
+                    if (settingsChangedDuringLoad == changedSettings) {
+                        settingsChangedDuringLoad = null;
                     }
                 }
-            }.runTask(stats.getPlugin());
+                return null;
+            });
+            settingsLoadFuture = future;
+            future.whenComplete((ignored, error) -> {
+                synchronized (settingsSync) {
+                    if (settingsLoadFuture == future) {
+                        settingsLoadFuture = null;
+                    }
+                    if (settingsChangedDuringLoad == changedSettings) {
+                        settingsChangedDuringLoad = null;
+                    }
+                }
+            });
+            return future;
         }
+    }
+
+    public boolean isSettingsLoadInProgress() {
+        synchronized (settingsSync) {
+            return settingsLoadFuture != null && !settingsLoadFuture.isDone();
+        }
+    }
+
+    private static Throwable unwrapCompletionException(Throwable error) {
+        Throwable result = error;
+        while (result.getCause() != null && result instanceof java.util.concurrent.CompletionException) {
+            result = result.getCause();
+        }
+        return result;
     }
 
     @Override
@@ -549,7 +578,9 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
 
     @Override
     public Integer getSettingValueIfLoaded(SettingKey setting) {
-        return settings.get(setting);
+        synchronized (settingsSync) {
+            return settings.get(setting);
+        }
     }
 
     @Override
@@ -563,12 +594,11 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         if (!(key instanceof SettingKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
-        settings.put((SettingKeyImplementation) key, value);
-        if (!settingsLoaded) {
-            if (doNotLoadSettings == null) {
-                doNotLoadSettings = new HashSet<>();
+        synchronized (settingsSync) {
+            settings.put((SettingKeyImplementation) key, value);
+            if (settingsChangedDuringLoad != null) {
+                settingsChangedDuringLoad.add((SettingKeyImplementation) key);
             }
-            doNotLoadSettings.add((SettingKeyImplementation) key);
         }
         stats.getWorkerThread().addWork(new WorkEntry() {
             @Override

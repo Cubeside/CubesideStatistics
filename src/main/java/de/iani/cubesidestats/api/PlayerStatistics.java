@@ -41,6 +41,16 @@ public interface PlayerStatistics {
 
     public void getAchivementLevel(AchivementKey key, Callback<Integer> achivementCallback);
 
+    /**
+     * Returns whether this player's settings have been loaded from the database.
+     *
+     * <p>For a player logging in, this is guaranteed to return {@code true} after CubesideStatistics has handled
+     * {@link org.bukkit.event.player.AsyncPlayerPreLoginEvent}. The settings are therefore available in subsequent
+     * login events and when {@link org.bukkit.event.player.PlayerJoinEvent} is called. A database load failure
+     * prevents the player from logging in.</p>
+     *
+     * @return {@code true} if the settings are available
+     */
     public boolean areSettingsLoaded();
 
     public Integer getSettingValueIfLoaded(SettingKey setting);

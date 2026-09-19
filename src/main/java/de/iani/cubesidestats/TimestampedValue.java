@@ -14,6 +14,10 @@ public class TimestampedValue<T> {
         return this.value;
     }
 
+    public T peek() {
+        return this.value;
+    }
+
     public void set(T value) {
         this.value = value;
         this.timestamp = System.nanoTime();
