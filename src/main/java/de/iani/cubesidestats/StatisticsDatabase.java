@@ -3,6 +3,7 @@ package de.iani.cubesidestats;
 import com.google.common.base.Preconditions;
 import de.iani.cubesidestats.api.Ordering;
 import de.iani.cubesidestats.api.PositionAlgorithm;
+import de.iani.cubesidestats.api.ScoreComparison;
 import de.iani.cubesideutils.sql.MySQLConnection;
 import de.iani.cubesideutils.sql.SQLConnection;
 import de.iani.cubesideutils.sql.SQLRunnable;
@@ -15,11 +16,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 public class StatisticsDatabase {
     private SQLConnection connection;
     private final CubesideStatisticsImplementation impl;
+    private final String tablePrefix;
 
     private final String getConfigValue;
     private final String increaseConfigValue;
@@ -89,6 +93,7 @@ public class StatisticsDatabase {
         this.impl = impl;
         connection = new MySQLConnection(config.getHost(), config.getDatabase(), config.getUser(), config.getPassword());
         String prefix = config.getTablePrefix();
+        this.tablePrefix = prefix;
         if (config.isCheckTables()) {
             updateTables(prefix);
         }
@@ -987,6 +992,28 @@ public class StatisticsDatabase {
                 results.close();
                 return result;
             }
+        });
+    }
+
+    public Set<UUID> findPlayersByScore(StatisticKeyImplementation key, int month, ScoreComparison comparison, int value) throws SQLException {
+        Preconditions.checkNotNull(key, "key");
+        Preconditions.checkNotNull(comparison, "comparison");
+        String query = "SELECT st.uuid FROM " + tablePrefix + "_scores sc JOIN " + tablePrefix
+                + "_players st ON sc.playerid = st.id WHERE sc.statsid = ? AND sc.month = ? AND sc.score "
+                + comparison.getSqlOperator() + " ?";
+        return this.connection.runCommands((connection, sqlConnection) -> {
+            LinkedHashSet<UUID> result = new LinkedHashSet<>();
+            try (PreparedStatement statement = connection.prepareStatement(query)) {
+                statement.setInt(1, key.getId());
+                statement.setInt(2, month);
+                statement.setInt(3, value);
+                try (ResultSet rs = statement.executeQuery()) {
+                    while (rs.next()) {
+                        result.add(UUID.fromString(rs.getString(1)));
+                    }
+                }
+            }
+            return result;
         });
     }
 

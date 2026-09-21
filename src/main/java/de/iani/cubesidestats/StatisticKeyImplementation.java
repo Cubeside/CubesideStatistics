@@ -8,11 +8,14 @@ import de.iani.cubesidestats.api.PlayerWithScore;
 import de.iani.cubesidestats.api.PositionAlgorithm;
 import de.iani.cubesidestats.api.StatisticKey;
 import de.iani.cubesidestats.api.TimeFrame;
+import de.iani.cubesidestats.api.ScoreComparison;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
@@ -196,6 +199,36 @@ public class StatisticKeyImplementation extends StatisticKeyImplementationBase i
                     future.complete(entries);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not get top scores for " + name, e);
+                }
+            }
+        });
+        return future;
+    }
+
+    @Override
+    public Future<Set<UUID>> findPlayersByScore(ScoreComparison comparison, int value, TimeFrame timeFrame, Calendar time) {
+        Preconditions.checkNotNull(comparison, "comparison");
+        Preconditions.checkNotNull(timeFrame, "timeFrame");
+        if (timeFrame == TimeFrame.MONTH && !isMonthlyStats()) {
+            throw new IllegalArgumentException("There are no monthly stats for this key");
+        }
+        if (timeFrame == TimeFrame.DAY && !isDailyStats()) {
+            throw new IllegalArgumentException("There are no daily stats for this key");
+        }
+        int timeKey = switch (timeFrame) {
+            case ALL_TIME -> -1;
+            case MONTH -> time == null ? stats.getCurrentMonthKey() : CubesideStatisticsImplementation.getMonthKey(time);
+            case DAY -> time == null ? stats.getCurrentDayKey() : CubesideStatisticsImplementation.getDayKey(time);
+        };
+        CompletableFuture<Set<UUID>> future = new CompletableFuture<>();
+        stats.getWorkerThread().addWork(new WorkEntry() {
+            @Override
+            public void process(StatisticsDatabase database) {
+                try {
+                    future.complete(Collections.unmodifiableSet(database.findPlayersByScore(StatisticKeyImplementation.this, timeKey, comparison, value)));
+                } catch (SQLException | RuntimeException e) {
+                    future.completeExceptionally(e);
+                    stats.getPlugin().getLogger().log(Level.SEVERE, "Could not query scores for " + name, e);
                 }
             }
         });

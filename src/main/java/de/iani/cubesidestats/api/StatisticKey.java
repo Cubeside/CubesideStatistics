@@ -2,6 +2,8 @@ package de.iani.cubesidestats.api;
 
 import java.util.Calendar;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Future;
 
 public interface StatisticKey {
@@ -48,6 +50,12 @@ public interface StatisticKey {
     public Future<List<PlayerWithScore>> getTop(int start, int count, Ordering order, TimeFrame timeFrame, Calendar time, PositionAlgorithm positionAlgorithm, Ordering positionOrder);
 
     public Future<Integer> getEntriesCount(TimeFrame timeFrame);
+
+    /**
+     * Finds players with a stored score matching the comparison. Players without a stored value are
+     * deliberately not returned; callers can apply their own missing-value policy.
+     */
+    public Future<Set<UUID>> findPlayersByScore(ScoreComparison comparison, int value, TimeFrame timeFrame, Calendar time);
 
     public default Future<Integer> getEntriesCount(TimeFrame timeFrame, Calendar time) {
         return getEntriesCount(timeFrame);
