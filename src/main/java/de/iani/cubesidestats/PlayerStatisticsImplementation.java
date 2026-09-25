@@ -83,6 +83,15 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                 if (!stats.getPlugin().isEnabled()) {
                     throw new IllegalStateException("Statistics plugin was disabled while loading settings");
                 }
+                loadedSettings.entrySet().removeIf(entry -> {
+                    SettingKeyImplementation key = entry.getKey();
+                    int value = entry.getValue();
+                    if (key.isValueAllowed(value)) {
+                        return false;
+                    }
+                    stats.getPlugin().getLogger().warning("Ignoring invalid stored value " + value + " for setting " + key.getName() + " and player " + playerId + "; using the setting default");
+                    return true;
+                });
                 synchronized (settingsSync) {
                     for (SettingKeyImplementation changedSetting : changedSettings) {
                         loadedSettings.put(changedSetting, settings.get(changedSetting));
@@ -579,7 +588,8 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
     @Override
     public Integer getSettingValueIfLoaded(SettingKey setting) {
         synchronized (settingsSync) {
-            return settings.get(setting);
+            Integer value = settings.get(setting);
+            return value != null && setting.isValueAllowed(value) ? value : null;
         }
     }
 
@@ -594,10 +604,14 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
         if (!(key instanceof SettingKeyImplementation)) {
             throw new IllegalArgumentException("key");
         }
+        SettingKeyImplementation implementation = (SettingKeyImplementation) key;
+        if (!implementation.isValueAllowed(value)) {
+            throw new IllegalArgumentException("Value " + value + " is outside the allowed range for setting " + key.getName());
+        }
         synchronized (settingsSync) {
-            settings.put((SettingKeyImplementation) key, value);
+            settings.put(implementation, value);
             if (settingsChangedDuringLoad != null) {
-                settingsChangedDuringLoad.add((SettingKeyImplementation) key);
+                settingsChangedDuringLoad.add(implementation);
             }
         }
         stats.getWorkerThread().addWork(new WorkEntry() {
@@ -607,8 +621,12 @@ public class PlayerStatisticsImplementation implements PlayerStatistics {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Invalid database id for " + playerId);
                     return;
                 }
+                if (!implementation.isValueAllowed(value)) {
+                    stats.getPlugin().getLogger().warning("Skipping invalid value " + value + " for setting " + implementation.getName() + " and player " + playerId);
+                    return;
+                }
                 try {
-                    database.setSettingValue(databaseId, (SettingKeyImplementation) key, value, false);
+                    database.setSettingValue(databaseId, implementation, value, false);
                 } catch (SQLException e) {
                     stats.getPlugin().getLogger().log(Level.SEVERE, "Could not set setting value for " + playerId, e);
                 }
